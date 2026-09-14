@@ -6,17 +6,28 @@ Thumbs.db
 .vscode/
 .idea/
 
-# Node
-node_modules/
-npm-debug.log*
-dist/
-build/
-
-# Python
+# Python (AI 서버)
 __pycache__/
 *.pyc
 .venv/
 venv/
+
+# Java / Spring Boot (백엔드)
+*.class
+target/
+.gradle/
+!gradle/wrapper/gradle-wrapper.jar
+
+# Android (앱)
+*.apk
+*.ap_
+local.properties
+.cxx/
+captures/
+
+# PlatformIO / Arduino (하드웨어)
+.pio/
+.pioenvs/
 
 # Env
 .env
@@ -24,3 +35,7 @@ venv/
 
 # Logs
 *.log
+
+# Build output
+dist/
+build/

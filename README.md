@@ -8,7 +8,7 @@
 **AI 공감형 초소형 키링 로봇 프로젝트**
 
 [![Status](https://img.shields.io/badge/status-in%20progress-blue)](#)
-[![Team](https://img.shields.io/badge/team-Back--end%20%7C%20App%20%7C%20HW%20%7C%20AI%2FPM-6f42c1)](#-팀-구성--개인-페이지)
+[![Team](https://img.shields.io/badge/team-Back--end%20%7C%20App%20%7C%20HW%20%7C%20AI%2FPM-6f42c1)](#팀-구성)
 [![License](https://img.shields.io/badge/license-MIT-green)](./LICENSE)
 
 </div>
@@ -17,13 +17,13 @@
 
 ## 목차
 
-- [프로젝트 배경 및 수정 사항](#-프로젝트-배경-및-수정-사항)
-- [주요 기능 및 특징](#-주요-기능-및-특징)
-- [캐릭터 페르소나: 오빗](#-캐릭터-페르소나-오빗orbit)
-- [4단계 탐사 시나리오](#-4단계-탐사-시나리오)
-- [예외 처리 로직](#-예외-처리-로직)
-- [공통 문서](#-공통-문서)
-- [팀 구성 / 개인 페이지](#-팀-구성--개인-페이지)
+- [주요 기능 및 특징](#주요-기능-및-특징)
+- [캐릭터 페르소나: 오빗](#캐릭터-페르소나-오빗orbit)
+- [4단계 탐사 시나리오](#4단계-탐사-시나리오)
+- [예외 처리 로직](#예외-처리-로직)
+- [시스템 구조](#시스템-구조)
+- [폴더 구조](#폴더-구조)
+- [팀 구성](#팀-구성)
 
 ---
 
@@ -56,26 +56,75 @@
 
 퀘스트 거부 시 별도 멘트를 제시하고 단계를 조정하며, **3회 이상 거부 시 심리상담 서비스로 연결**됩니다.
 
-## 공통 문서
+## 시스템 구조
 
-프로젝트 전반에서 공유하는 문서는 [`docs/`](./docs) 폴더에서 관리합니다.
+오빗은 하드웨어(키링) · 앱 · 백엔드 · AI 서버 네 부분이 아래와 같이 연동됩니다.
 
-| 문서 | 설명 |
+```mermaid
+flowchart LR
+    subgraph HW["하드웨어 · ESP32-WROOM-32"]
+        Sensor["터치 / 가속도 / 조도 센서"]
+        LED["WS2812B NeoPixel"]
+        Vib["PP-A811 진동 모터"]
+        OLED["SH1106 OLED"]
+    end
+
+    subgraph APP["앱 · Kotlin + Jetpack Compose"]
+        UI["대시보드 / 아바타 UI"]
+        GPS["GPS 탐사 기록"]
+    end
+
+    subgraph AI["AI 서버 · FastAPI"]
+        STT["Whisper STT"]
+        Emotion["멀티모달 감정 분석<br/>RoBERTa + MLP"]
+        LLM["Gemini 2.5 Flash"]
+        TTS["Edge-TTS"]
+    end
+
+    subgraph BE["백엔드 · Spring Boot"]
+        API["사용자 / 캐릭터 상태 API"]
+        DB[("DB")]
+    end
+
+    HW <-->|"BLE / MQTT"| APP
+    APP -->|"음성 · 센서 데이터"| AI
+    APP <-->|"상태 동기화"| BE
+    STT --> Emotion --> LLM --> TTS
+    LLM -->|"하드웨어 제어 JSON (led/vibe/oled)"| APP
+    AI <-->|"대화 · 미션 기록"| BE
+```
+
+| 구성 | 주요 기술 |
 | --- | --- |
-| [개발 계획](./docs/development-plan.md) | 전체 로드맵 및 마일스톤 |
-| [회의 내용 정리](./docs/meeting-notes.md) | 회차별 회의록 |
-| [주차별 보고서 및 피드백](./docs/weekly-reports.md) | 주차별 진행 상황과 피드백 |
+| 하드웨어 | ESP32-WROOM-32, WS2812B NeoPixel, PP-A811 진동 모터, SH1106 OLED |
+| 앱 | Kotlin, Jetpack Compose |
+| 백엔드 | Spring Boot (사용자 · 캐릭터 상태 관리, DB) |
+| AI 서버 | FastAPI, Whisper(STT), Gemini 2.5 Flash(LLM), Edge-TTS(TTS), RoBERTa+MLP 기반 멀티모달 감정 분석 |
 
-## 팀 구성 / 개인 페이지
+## 폴더 구조
 
-각 파트별 진행 상황과 개인 작업 내역은 [`members/`](./members) 폴더 하위 페이지에서 확인할 수 있습니다.
+> 각 파트 코드가 추가될 예정인 모노레포 구조입니다.
 
-| 파트 | 페이지 |
-| --- | --- |
-| 🖥️ Back-end | [members/backend](./members/backend) |
-| 📱 APP | [members/app](./members/app) |
-| 🔩 HW | [members/hw](./members/hw) |
-| 🧠 AI / PM | [members/ai-pm](./members/ai-pm) |
+```
+Orbit/
+├── app/            # 안드로이드 앱 (Kotlin, Jetpack Compose)
+├── backend/        # Spring Boot 메인 서버 (사용자/캐릭터 상태, DB)
+├── ai-server/      # FastAPI 기반 AI 추론 서버 (STT · 감정분석 · LLM · TTS)
+├── hardware/        # ESP32 펌웨어 (Arduino / PlatformIO)
+├── assets/          # 이미지 등 리소스
+├── CONTRIBUTING.md
+├── LICENSE
+└── README.md
+```
+
+## 팀 구성
+
+| 이름 | 역할 | 주요 브랜치 |
+| --- | --- | --- |
+| | Back-end | |
+| | APP | |
+| | HW | |
+| | AI / PM | |
 
 ---
 
