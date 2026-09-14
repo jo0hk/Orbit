@@ -1,7 +1,5 @@
 <div align="center">
 
-<img src="./assets/banner.svg" alt="Orbit banner" width="100%" />
-
 # 우주탐사대원 - Orbit
 
 ### *"은둔의 궤도를 벗어나 사회라는 거대한 은하로"*
