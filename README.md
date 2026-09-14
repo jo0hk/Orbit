@@ -121,10 +121,10 @@ Orbit/
 
 | 이름 | 역할 | 주요 브랜치 |
 | --- | --- | --- |
-| | Back-end | |
-| | APP | |
-| | HW | |
-| | AI / PM | |
+| 김주하 | AI / PM · 팀장 | `feature/ai-pm` |
+| 강민경 | Android App | `feature/app` |
+| 김윤서 | HW / IoT | `feature/hw` |
+| 반민서 | Backend | `feature/backend` |
 
 ---
 
