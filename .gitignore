@@ -39,3 +39,6 @@ captures/
 # Build output
 dist/
 build/
+
+# [하드웨어] 비공개 설정
+wifi_config.h
