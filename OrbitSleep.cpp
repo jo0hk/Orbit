@@ -1,4 +1,6 @@
 #include "OrbitSleep.h"
+#include "OrbitFace.h"
+extern OrbitFace face;
 
 RTC_DATA_ATTR int bootCount = 0;
 
@@ -31,11 +33,11 @@ void checkSleepTimer(unsigned long lastActivityTime) {
 // 터치 감지 후 깨어나기
 void enterOrbitDeepSleep() {
   Serial.println("\n[설정] GPIO 14번 핀이 HIGH가 되면 깨어나도록 외부 인터럽트를 설정합니다.");
-  
   esp_sleep_enable_ext0_wakeup(SLEEP_TOUCH_PIN, 1);
-  
+
   Serial.flush(); // 시리얼 버퍼 비우기
-  
+
+  face.playSleepAnimation();
   // 딥슬립 모드 시작
   esp_deep_sleep_start();
 }

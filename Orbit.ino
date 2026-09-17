@@ -1,6 +1,7 @@
 #include "OrbitLED.h"
 #include "TouchHandler.h"
 #include "OrbitSleep.h"
+#include "OrbitFace.h"
 
 #define LED_PIN      18
 #define TOUCH_PIN    14
@@ -13,6 +14,7 @@ unsigned long talkResponseTime  = 5000;
 unsigned long lastActivityTime  = 0;
 
 OrbitLED orbit(NUMPIXELS, LED_PIN);
+OrbitFace face;
 
 // 딥슬립 중에도 단계 색상을 기억하도록 RTC 메모리에 저장
 RTC_DATA_ATTR int curR = 135;
@@ -37,19 +39,20 @@ void playVibration(int patternType) {
 
 void setup() {
   orbit.begin();
+  face.begin();
+
   pinMode(TOUCH_PIN, INPUT_PULLDOWN);
   pinMode(VIB_PIN, OUTPUT);
   digitalWrite(VIB_PIN, LOW);
-  
+
   Serial.begin(115200);
 
   // 1. 딥슬립 시스템 초기화 및 원인 진단
   initSleepSystem();
 
-  // 2. 시스템 기상 시 촉각 피드백 (진동)
+  // 2. 시스템 기상 피드백: 진동 + 눈 번쩍 뜨기 + 네오픽셀 테마색 0.5초 점등
   playVibration(1);
-
-  // 3. 기상 시각 피드백: 현재 단계 테마색 0.5초 점등
+  face.playWakeupAnimation();
   orbit.playFadeEffect(curR, curG, curB, 500);
 
   lastActivityTime = millis();
@@ -62,6 +65,8 @@ void setup() {
 }
 
 void loop() {
+  face.update();
+
   // [연동시 주석 해제] 네트워크 유지 루프
   // handleTouchNetwork(); 
 
@@ -75,11 +80,16 @@ void loop() {
     // [연동시 주석 해제] 터치 이벤트 서버 전송
     // sendTouchMQTT(); 
 
+    face.setExpression(EXPR_HAPPY);
+
     // 터치 인터랙션 시 촉각 피드백 (심장박동 패턴)
     playVibration(2);
     
     // 네오픽셀 이벤트 효과
     orbit.playFadeEffect(255, 255, 0, touchResponseTime);
+
+    // 인터랙션 종료 후 평상시 표정으로 복귀
+    face.setExpression(EXPR_NORMAL);
   }
 
   // 2. 시리얼 입력
@@ -92,13 +102,17 @@ void loop() {
     else if (input == '3') { curR = 127; curG = 255; curB = 0; orbit.playFadeEffect(curR, curG, curB, 10000); }
     else if (input == '4') { curR = 0; curG = 255; curB = 60; orbit.playFadeEffect(curR, curG, curB, 10000); }
     
-    else if (input == 'h' || input == 'H') { 
+    else if (input == 'h' || input == 'H') {
+      face.setExpression(EXPR_HAPPY); // 기쁨 표정
       playVibration(2); // 기쁨 시 두근거림
-      orbit.playFadeEffect(255, 255, 0, talkResponseTime); 
+      orbit.playFadeEffect(255, 255, 0, talkResponseTime);
+      face.setExpression(EXPR_NORMAL); // 평상시 눈 복귀 
     }
     else if (input == 's' || input == 'S') { 
+      face.setExpression(EXPR_SAD);   // 슬픔 표정
       playVibration(1); // 슬픔 시 무거운 진동
       orbit.playFadeEffect(0, 0, 255, talkResponseTime); 
+      face.setExpression(EXPR_NORMAL); // 평상시 눈 복귀
     }
   }
 
