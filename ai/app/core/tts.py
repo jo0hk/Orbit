@@ -45,8 +45,13 @@ class RadioTTS:
         )
         return segment + volume_db
 
-    async def synthesize(self, text: str, out_path: str) -> str:
-        """returns 생성된 음성 파일 경로."""
+    async def synthesize(self, text: str, out_path: str, plain: bool = False) -> str:
+        """returns 생성된 음성 파일 경로.
+
+        plain=True 이면 무전 톤 후처리(대역 필터 + 노이즈 합성)를 건너뜁니다.
+        고위험 발화 대응 시에만 씁니다. 위기 상황에서 캐릭터 연출을 하지
+        않기 위함입니다. → docs/high-risk-utterance-policy.md
+        """
         import edge_tts
         from pydub import AudioSegment
 
@@ -56,6 +61,10 @@ class RadioTTS:
 
         communicate = edge_tts.Communicate(text, self._settings.tts_voice, rate="+10%")
         await communicate.save(str(raw))
+
+        if plain:
+            raw.replace(out)
+            return str(out)
 
         voice = AudioSegment.from_file(raw, format="mp3")
         filtered = voice.low_pass_filter(LOW_PASS_HZ).high_pass_filter(HIGH_PASS_HZ)

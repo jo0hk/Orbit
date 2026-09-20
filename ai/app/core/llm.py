@@ -46,15 +46,15 @@ class OrbitLLM:
         self._client = genai.Client(api_key=key)
 
     def _safety_settings(self):
-        """⚠️ 1학기 설정을 그대로 옮겼습니다: 4개 카테고리 전부 BLOCK_NONE.
+        """3주차 정책 반영.
 
-        적대적 발화("야 너 내가 만만해?") 테스트에서 모델이 응답을 거부하지
-        않도록 끈 것으로 보입니다. 다만 DANGEROUS_CONTENT까지 열려 있어
-        3주차 '고위험 발화 대응 정책'과 충돌합니다. 자해 암시 발화가 들어와도
-        안전 필터가 전혀 개입하지 않습니다.
+        1학기에는 4개 카테고리 전부 BLOCK_NONE이었습니다. HARASSMENT 완화는
+        이유가 있습니다 - 적대적 발화("야 너 내가 만만해?")에 모델이 응답을
+        거부하면 예외 대화 3번이 동작하지 않습니다.
 
-        TODO(3주차): HARASSMENT만 완화하고 DANGEROUS_CONTENT는 기본값으로
-        되돌린 뒤, 서버 단에서 에스컬레이션 분기를 두는 구조를 검토하세요.
+        그러나 DANGEROUS_CONTENT까지 열어둘 이유는 없어 목록에서 제외했고,
+        Gemini 기본 임계값이 적용됩니다. 자해 암시 발화는 그보다 앞서
+        core/safety.py가 LLM 호출 전에 가로챕니다.
         """
         from google.genai import types
 
@@ -65,9 +65,8 @@ class OrbitLLM:
                 c.HARM_CATEGORY_HARASSMENT,
                 c.HARM_CATEGORY_HATE_SPEECH,
                 c.HARM_CATEGORY_SEXUALLY_EXPLICIT,
-                c.HARM_CATEGORY_DANGEROUS_CONTENT,
             )
-        ]
+        ]  # HARM_CATEGORY_DANGEROUS_CONTENT 는 기본값 유지
 
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=8))
     def _call(self, system_prompt: str, user_text: str) -> dict:

@@ -20,6 +20,7 @@ from contextlib import contextmanager
 from app.core.context import build_system_prompt
 from app.core.emotion import EmotionEngine
 from app.core.llm import EMERGENCY_RESPONSE, OrbitLLM
+from app.core.safety import build_high_risk_response, detect_high_risk
 from app.core.stt import SpeechToText
 from app.core.tts import RadioTTS
 from app.schemas import EnvContext, InteractResponse, LatencyBreakdown, oled_for
@@ -59,28 +60,41 @@ class OrbitCore:
         with _timed(marks, "stt_ms"):
             user_text, stt_conf = self.stt.transcribe(audio_path)
 
+        high_risk = detect_high_risk(user_text)
+
         # TODO(최적화): 감정 분석은 STT 결과(텍스트)에 의존하므로 완전 병렬은
         #   불가능합니다. 오디오 특징 추출(librosa)만 STT와 병렬로 돌리면
         #   emotion_ms의 상당 부분을 감출 수 있습니다.
         with _timed(marks, "emotion_ms"):
             emotion, emo_conf = self.emotion.analyze(user_text, audio_path)
 
-        system_prompt = build_system_prompt(emotion, ctx)
+        if high_risk:
+            # LLM을 호출하지 않습니다. 생성 모델의 출력은 매번 달라지므로
+            # 안전이 걸린 응답에 쓸 수 없습니다.
+            # 감정 분석은 그대로 수행합니다 - 정책 문서의 2차 탐지 기준
+            # (sad/fear가 연속 5턴 지속)이 이 기록을 필요로 합니다.
+            logger.warning("고위험 발화 탐지. LLM을 건너뛰고 고정 응답을 반환합니다.")
+            result = build_high_risk_response()
+        else:
+            system_prompt = build_system_prompt(emotion, ctx)
 
-        with _timed(marks, "llm_ms"):
-            try:
-                result = self.llm.generate(system_prompt, user_text)
-            except Exception:
-                # 비상 프로토콜: 에러를 던지지 않고 멀티모달 폴백을 반환합니다.
-                logger.warning("LLM 호출 실패. 비상 프로토콜로 응답합니다.", exc_info=True)
-                result = EMERGENCY_RESPONSE.model_copy(deep=True)
+            with _timed(marks, "llm_ms"):
+                try:
+                    result = self.llm.generate(system_prompt, user_text)
+                except Exception:
+                    # 비상 프로토콜: 에러를 던지지 않고 멀티모달 폴백을 반환합니다.
+                    logger.warning("LLM 호출 실패. 비상 프로토콜로 응답합니다.", exc_info=True)
+                    result = EMERGENCY_RESPONSE.model_copy(deep=True)
 
-        if not result.fallback_triggered:
-            result.oled_expression = oled_for(emotion)
+            if not result.fallback_triggered:
+                result.oled_expression = oled_for(emotion)
 
         with _timed(marks, "tts_ms"):
             out_path = f"{OUTPUT_DIR}/{uuid.uuid4().hex}.mp3"
-            result.audio_url = await self.tts.synthesize(result.speech, out_path)
+            # 고위험 대응은 무전 노이즈 없이 평범한 목소리로 출력합니다.
+            result.audio_url = await self.tts.synthesize(
+                result.speech, out_path, plain=high_risk
+            )
 
         result.user_text = user_text
         result.stt_confidence = stt_conf
@@ -92,7 +106,7 @@ class OrbitCore:
         )
 
         logger.info(
-            "interact 완료: emotion=%s conf=%.2f latency=%s",
-            emotion.value, emo_conf or 0.0, result.latency.model_dump(),
+            "interact 완료: emotion=%s conf=%.2f high_risk=%s latency=%s",
+            emotion.value, emo_conf or 0.0, high_risk, result.latency.model_dump(),
         )
         return result

@@ -124,9 +124,20 @@ HARM_CATEGORY_DANGEROUS_CONTENT → BLOCK_NONE   ⚠️
 
 ## 구현 체크리스트
 
-- [ ] `ai/app/core/safety.py` 신규 — 키워드 탐지 + 고정 응답
-- [ ] `pipeline.py`에서 STT 직후 분기, LLM 건너뛰기
-- [ ] `RadioTTS` 우회 경로 (노이즈·필터 미적용)
-- [ ] `llm.py`의 `DANGEROUS_CONTENT`를 기본 임계값으로 복원
-- [ ] 대화 로그에 `highRiskDetected` 필드 추가 (백엔드)
+- [x] `ai/app/core/safety.py` 신규 — 키워드 탐지 + 고정 응답
+- [x] `pipeline.py`에서 STT 직후 분기, LLM 건너뛰기
+- [x] `RadioTTS` 우회 경로 (`synthesize(..., plain=True)`)
+- [x] `llm.py`의 `DANGEROUS_CONTENT`를 기본 임계값으로 복원
+- [x] `InteractResponse.high_risk_detected` 플래그 추가
+- [x] 테스트 `ai/tests/test_safety.py` (7종)
+- [ ] 대화 로그에 `highRiskDetected` 컬럼 추가 (**백엔드 작업**)
 - [ ] 상담 전화번호 유효성 확인 후 배포
+- [ ] 2차 탐지(감정 연속 5턴) 구현 — 대화 이력 조회 API 필요. 보류
+
+### 구현 메모
+
+- 감정 분석은 **건너뛰지 않습니다.** 2차 탐지 기준이 `user_emotion` 이력을
+  필요로 하기 때문입니다. LLM 호출만 생략합니다.
+- 키워드는 공백을 제거하고 비교합니다 (`죽고 싶어` / `죽고싶어` 모두 탐지).
+- 알려진 오탐: `죽을래?` 같은 적대적 농담도 걸립니다. 예외 대화 3번으로
+  가야 할 발화가 이쪽으로 오지만 의도한 선택입니다. 8주차에 빈도를 확인하세요.
