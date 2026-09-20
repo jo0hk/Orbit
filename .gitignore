@@ -29,6 +29,22 @@ captures/
 .pio/
 .pioenvs/
 
+# Model weights (HF Hub 또는 별도 스토리지로 관리)
+*.pt
+*.pth
+*.ckpt
+*.onnx
+*.safetensors
+*.bin
+
+# AI 산출물 / 캐시
+ai/models/*
+!ai/models/.gitkeep
+ai/outputs/
+.cache/
+*.wav
+*.mp3
+
 # Env
 .env
 .env.local
