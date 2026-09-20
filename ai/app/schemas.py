@@ -54,6 +54,7 @@ class Vibe(str, Enum):
     SOFT_CONTINUOUS = "soft_continuous"  # sad / fear
     CALM_WAVE = "calm_wave"            # anger / disgust
     SHORT = "short"                    # 통신 장애 폴백
+    NONE = "none"                      # 서버 전용. LLM은 선택하지 않음 (고위험 발화 대응)
 
 
 class OledExpression(str, Enum):
@@ -147,10 +148,18 @@ class InteractResponse(BaseModel):
     # --- 2주차 대화 로그 저장용 ---
     user_text: str = ""
     stt_confidence: float | None = None
-    emotion: Emotion = Emotion.NEUTRAL
-    emotion_confidence: float | None = None
+    # "사용자의 감정". 백엔드 CharacterStatus.emotionStatus("오빗의 상태")와는
+    # 다른 개념입니다. 1학기에 두 개념이 섞여 라벨 불일치가 발생했습니다.
+    # 매핑 규칙은 docs/interface-spec-v1.md 2절 참조.
+    user_emotion: Emotion = Emotion.NEUTRAL
+    user_emotion_confidence: float | None = None
 
     # --- 운영 ---
     latency: LatencyBreakdown = Field(default_factory=LatencyBreakdown)
     llm_retry_count: int = 0
     fallback_triggered: bool = False
+
+    # 고위험 발화 대응이 발동했는지. fallback_triggered(통신 장애)와 구분됩니다.
+    # ⚠️ 통계 목적으로만 씁니다. 특정 사용자를 지목하거나 외부에 알리지 않습니다.
+    #    docs/high-risk-utterance-policy.md 참조
+    high_risk_detected: bool = False
