@@ -54,6 +54,7 @@ AI가 응답을 만들고 나면 감정·환경·하드웨어 신호가 함께 �
 | `latencyTtsMs` | `Integer` | 단계별 | 2 |
 | `llmRetryCount` | `Integer` | 재시도 횟수 | 2 |
 | `fallbackTriggered` | `Boolean` | 비상 프로토콜 발동 여부 | 2 |
+| `highRiskDetected` | `Boolean` | 고위험 발화 대응 발동 여부 | 3 |
 | `missionId` | `String` | 관련 미션 | 4 |
 | `missionResult` | `String` | success/fail/retry | 5 |
 | `distanceM` | `Integer` | GPS 누적 거리 | 7 |

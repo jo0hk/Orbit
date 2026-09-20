@@ -158,3 +158,8 @@ class InteractResponse(BaseModel):
     latency: LatencyBreakdown = Field(default_factory=LatencyBreakdown)
     llm_retry_count: int = 0
     fallback_triggered: bool = False
+
+    # 고위험 발화 대응이 발동했는지. fallback_triggered(통신 장애)와 구분됩니다.
+    # ⚠️ 통계 목적으로만 씁니다. 특정 사용자를 지목하거나 외부에 알리지 않습니다.
+    #    docs/high-risk-utterance-policy.md 참조
+    high_risk_detected: bool = False
