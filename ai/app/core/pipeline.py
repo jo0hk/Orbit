@@ -84,8 +84,8 @@ class OrbitCore:
 
         result.user_text = user_text
         result.stt_confidence = stt_conf
-        result.emotion = emotion
-        result.emotion_confidence = emo_conf
+        result.user_emotion = emotion
+        result.user_emotion_confidence = emo_conf
         result.latency = LatencyBreakdown(
             **marks,
             total_ms=int((time.perf_counter() - total_start) * 1000),

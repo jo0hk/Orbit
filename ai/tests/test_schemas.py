@@ -31,7 +31,10 @@ def test_hw_values_match_persona_prompt():
     떨어집니다. 그 반대도 마찬가지입니다.
     """
     assert {e.value for e in Led} == {"rainbow", "dim_blue", "dim_white", "orange"}
-    assert {v.value for v in Vibe} == {"strong_double", "soft_continuous", "calm_wave", "short"}
+
+    # Vibe.NONE은 서버 전용(고위험 발화 대응)이라 프롬프트에 노출하지 않습니다.
+    llm_selectable = {v.value for v in Vibe} - {"none"}
+    assert llm_selectable == {"strong_double", "soft_continuous", "calm_wave", "short"}
 
 
 def test_emotion_labels_match_trained_model():
