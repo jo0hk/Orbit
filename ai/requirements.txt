@@ -35,3 +35,7 @@ pydub                     # low_pass_filter + 화이트 노이즈 합성
 # --- 기타 ---
 python-dotenv
 httpx
+
+# --- 개발용 ---
+pytest
+pytest-asyncio

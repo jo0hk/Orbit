@@ -41,29 +41,51 @@ uvicorn app.main:app --reload --port 8000
 
 ## 현재 상태
 
-**골격만 있습니다.** 각 모듈의 `NotImplementedError`와 `TODO(1주차)` 주석이
-Colab 노트북에서 옮겨와야 할 지점입니다. 이식 순서:
+1학기 Colab 노트북(`Orbit.ipynb`)의 코드를 **이식 완료**했습니다. 다만 아직
+실행 검증은 하지 않았습니다. 구문 검사만 통과한 상태입니다.
 
-1. `llm.py` — Gemini 호출 + tenacity 백오프
-2. `tts.py` — edge-tts + 무전 노이즈 (`nest_asyncio` 패치는 제거)
-3. `stt.py` — faster-whisper로 교체하며 이식
-4. `emotion.py` — 모델 정의 + 가중치 로딩
-5. `vision.py` — 멀티모달 호출
+이식하며 원본과 달라진 점:
 
-각 단계마다 `/health`와 최소 요청으로 확인하고 넘어가세요.
+| 항목 | 1학기 노트북 | 현재 | 이유 |
+| --- | --- | --- | --- |
+| STT 엔진 | openai-whisper | faster-whisper | CPU 추론 약 4배 |
+| STT initial_prompt | cell-1에만 있음 | 복원 | 고유명사 인식률 |
+| TTS 노이즈 합성 | cell-2에만 있음 | 복원 | 노션 문서와 일치시킴 |
+| 오디오 특징 실패 | bare except로 무시 | 경고 로깅 | 조용한 실패 방지 |
+| 감정 라벨 검증 | 없음 | 기동 시 대조 | 체크포인트 불일치 조기 발견 |
+| 감정 신뢰도 | 없음 | softmax 추가 | 2주차 로그 필드 |
+| nest_asyncio | 적용 | 제거 | Colab 전용 |
+| 마이크 녹음 | Colab JS 브릿지 | 제거 | 앱이 녹음해 전송 |
+
+## 첫 실행 전 확인
+
+1. `ai/models/orbit_emotion_v1.pth` 가 있는지 (드라이브에서 내려받아 배치)
+2. `ai/.env` 의 `GEMINI_API_KEY` 가 비어 있지 않은지
+   → 1학기에 빈 키로 돌려서 모든 LLM 호출이 실패했습니다
+3. ffmpeg 설치 여부 (`ffmpeg -version`)
 
 ## 레이턴시 기준선
 
-1학기 최종 **6초대** (최초 10.51초). `InteractResponse.latency`가 단계별
-소요 시간을 담습니다. 미션 판정이 붙는 5주차 이후 이 값을 계속 감시하세요.
+**아직 없습니다.**
 
-Colab T4 GPU에서 측정한 값이므로, 서버 CPU 환경에서 STT 단독 시간을
-다시 재고 기록해야 합니다.
+1학기 일지의 "6초대"는 유효한 측정값이 아닙니다. 해당 벤치마크(cell-9)가
+실행될 때 `API_KEY=""` 라 Gemini 호출이 모두 실패했고, tenacity가
+`wait_exponential(min=2, max=8)`로 3회 재시도하며 약 6초를 대기했습니다.
+기록된 6.72초는 사실상 그 대기 시간입니다.
+
+1주차에 정상 응답 기준으로 다시 측정하세요. `InteractResponse.latency`가
+STT / 감정 / LLM / TTS 단계별 소요 시간을 담습니다.
 
 ## 주의
 
 - **`max_output_tokens`로 출력을 자르지 마세요.** JSON이 깨져 `ServerError`가
   납니다. 글자 수 제한은 프롬프트의 45자 규칙으로 겁니다.
 - **`gTTS`로 되돌리지 마세요.** click/typer 의존성 충돌로 폐기했습니다.
+- **`nest_asyncio.apply()`를 다시 넣지 마세요.** FastAPI 이벤트 루프와 충돌합니다.
 - **감정 5클래스에 긍정이 없습니다.** 미션 성공 칭찬을 감정 엔진이 받쳐주지
   못합니다. 1주차 결정 사항입니다.
+- **Gemini safety_settings가 4개 카테고리 전부 `BLOCK_NONE`입니다.**
+  1학기 설정을 그대로 옮겼으나, `DANGEROUS_CONTENT`까지 열려 있어 3주차
+  고위험 발화 대응 정책과 충돌합니다. `core/llm.py`의 TODO를 보세요.
+- **Gemini 무료 티어는 일 20요청입니다.** 1학기에 429로 비전 테스트가
+  중단됐습니다. E2E 테스트를 반복할 계획이면 할당량을 먼저 확인하세요.

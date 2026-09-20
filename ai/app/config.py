@@ -15,7 +15,7 @@ class Settings(BaseSettings):
     gemini_model: str = "gemini-2.5-flash"
 
     # 감정 엔진
-    emotion_model_path: str = "ai/models/emotion_fusion.pt"
+    emotion_model_path: str = "models/orbit_emotion_v1.pth"  # cwd=ai/ 기준
     emotion_text_encoder: str = "klue/roberta-small"
 
     # STT

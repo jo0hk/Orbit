@@ -2,20 +2,27 @@
 
 1학기 교훈 (그대로 유지할 것):
   1. max_output_tokens로 자르지 마세요. JSON이 깨져 ServerError가 납니다.
-     대신 프롬프트에 "45자 이내 압축 답변" 규칙을 넣습니다.
-  2. 503 UNAVAILABLE 대비 tenacity로 2^n초 Exponential Backoff, 최대 3회.
-  3. 완전 두절 시 에러 대신 비상 프로토콜 응답을 반환합니다.
+     글자 수 제한은 프롬프트의 45자 규칙으로 겁니다.
+  2. 503 UNAVAILABLE 대비 tenacity Exponential Backoff, 최대 3회.
+  3. 완전 실패 시 예외 대신 비상 프로토콜 응답을 반환합니다.
 """
 
 from __future__ import annotations
 
+import json
+import logging
+
+from tenacity import retry, stop_after_attempt, wait_exponential
+
 from app.config import get_settings
 from app.schemas import InteractResponse, Led, OledExpression, Vibe
 
+logger = logging.getLogger(__name__)
+
 EMERGENCY_RESPONSE = InteractResponse(
-    speech="치칙- 태양풍 간섭으로 교신이 끊겼습니다. 잠시 후 재시도 바랍니다. 오버",
-    led=Led.ORANGE_PULSE,
-    vibe=Vibe.TWO_SHORT_TAPS,
+    speech="치직- 통신 장애 발생. 태양풍 간섭으로 교신이 끊겼습니다. 오버.",
+    led=Led.ORANGE,
+    vibe=Vibe.SHORT,
     oled_expression=OledExpression.SAD_EYES,
     fallback_triggered=True,
 )
@@ -29,14 +36,67 @@ class OrbitLLM:
     def _ensure_loaded(self) -> None:
         if self._client is not None:
             return
-        # TODO(1주차): Colab의 google-genai 클라이언트 초기화를 옮기세요.
-        #
-        # from google import genai
-        # self._client = genai.Client(api_key=self._settings.gemini_api_key)
-        raise NotImplementedError("1주차 이식 대상: Gemini 클라이언트")
+        from google import genai
 
-    # TODO(1주차): @retry(wait=wait_exponential(), stop=stop_after_attempt(3)) 적용
+        key = self._settings.gemini_api_key
+        if not key:
+            # 1학기에 API_KEY=""로 돌려서 모든 호출이 실패했고,
+            # 그 상태의 대기 시간이 레이턴시로 기록됐습니다. 같은 일을 막습니다.
+            raise RuntimeError("GEMINI_API_KEY가 비어 있습니다. ai/.env를 확인하세요.")
+        self._client = genai.Client(api_key=key)
+
+    def _safety_settings(self):
+        """⚠️ 1학기 설정을 그대로 옮겼습니다: 4개 카테고리 전부 BLOCK_NONE.
+
+        적대적 발화("야 너 내가 만만해?") 테스트에서 모델이 응답을 거부하지
+        않도록 끈 것으로 보입니다. 다만 DANGEROUS_CONTENT까지 열려 있어
+        3주차 '고위험 발화 대응 정책'과 충돌합니다. 자해 암시 발화가 들어와도
+        안전 필터가 전혀 개입하지 않습니다.
+
+        TODO(3주차): HARASSMENT만 완화하고 DANGEROUS_CONTENT는 기본값으로
+        되돌린 뒤, 서버 단에서 에스컬레이션 분기를 두는 구조를 검토하세요.
+        """
+        from google.genai import types
+
+        c, t = types.HarmCategory, types.HarmBlockThreshold
+        return [
+            types.SafetySetting(category=cat, threshold=t.BLOCK_NONE)
+            for cat in (
+                c.HARM_CATEGORY_HARASSMENT,
+                c.HARM_CATEGORY_HATE_SPEECH,
+                c.HARM_CATEGORY_SEXUALLY_EXPLICIT,
+                c.HARM_CATEGORY_DANGEROUS_CONTENT,
+            )
+        ]
+
+    @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=8))
+    def _call(self, system_prompt: str, user_text: str) -> dict:
+        from google.genai import types
+
+        response = self._client.models.generate_content(
+            model=self._settings.gemini_model,
+            contents=user_text,
+            config=types.GenerateContentConfig(
+                system_instruction=system_prompt,
+                response_mime_type="application/json",
+                temperature=0.3,
+                safety_settings=self._safety_settings(),
+            ),
+        )
+        return json.loads(response.text)
+
     def generate(self, system_prompt: str, user_text: str) -> InteractResponse:
-        """response_mime_type="application/json" 으로 Strict JSON을 강제합니다."""
         self._ensure_loaded()
-        raise NotImplementedError
+        raw = self._call(system_prompt, user_text)
+
+        # LLM이 enum에 없는 값을 지어내면 여기서 ValueError가 납니다.
+        # pipeline이 잡아서 비상 프로토콜로 폴백합니다.
+        stats = getattr(self._call, "retry", None)
+        attempts = stats.statistics.get("attempt_number", 1) if stats else 1
+
+        return InteractResponse(
+            speech=raw["speech"],
+            led=Led(raw["led"]),
+            vibe=Vibe(raw["vibe"]),
+            llm_retry_count=max(0, attempts - 1),
+        )
