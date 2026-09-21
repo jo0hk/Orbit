@@ -55,3 +55,6 @@ ai/outputs/
 # Build output
 dist/
 build/
+
+# AI 측정 도구 산출물
+ai/tools/smoke_result.json
