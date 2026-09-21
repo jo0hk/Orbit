@@ -15,6 +15,7 @@ from app.missions import (
     SIGNAL_TIMEOUT,
     MissionState,
 )
+from app.missions import SensorType, Stage
 from app.schemas import Led, OledExpression, Vibe
 
 ALL_LINES = [
@@ -70,10 +71,20 @@ def test_no_failed_state():
     assert "failed" not in {s.value for s in MissionState}
 
 
-def test_stages_are_unique_and_ordered():
-    stages = [m.stage for m in MISSIONS]
+def test_stages_are_ordered_and_cover_the_arc():
+    """원본 4단계 서사(은둔 → 사회 복귀)를 유지해야 합니다.
+
+    단계가 빠지면 10주차 시연에서 이야기가 끊깁니다.
+    """
+    stages = [int(m.stage) for m in MISSIONS]
     assert stages == sorted(stages)
-    assert len(set(stages)) == len(stages)
+    assert set(stages) == {1, 2, 3, 4}
+
+
+def test_every_mission_records_origin_verification():
+    """원본 '검증 방법'을 남겨 대조 가능하게 합니다."""
+    for m in MISSIONS:
+        assert m.origin_verification.strip()
 
 
 def test_fallback_targets_exist():
@@ -85,4 +96,15 @@ def test_fallback_targets_exist():
 
 
 def test_gps_mission_inactive_until_week7():
-    assert BY_ID["m_gps_scout"].active is False
+    assert BY_ID["m_basecamp_100m"].active is False
+
+
+def test_contact_stage_does_not_use_always_on_mic():
+    """원본 4단계 검증 방법은 상시 마이크 + STT입니다.
+
+    타인과의 대화를 상시 청취해야 하므로 채택하지 않습니다.
+    자가 보고로 대체했고, 이 테스트가 되돌림을 막습니다.
+    """
+    for m in MISSIONS:
+        if m.stage is Stage.CONTACT:
+            assert m.sensor is SensorType.SELF_REPORT

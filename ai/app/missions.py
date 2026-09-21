@@ -1,10 +1,11 @@
 """탐사 미션 정의 (4주차 산출물).
 
-판정 조건 상세: docs/mission-spec.md
-대사 전문:     ai/prompts/missions.md
+원본:         docs/reference/mission-list-1st-semester.md (80개 미션 / 4단계)
+판정 조건:    docs/mission-spec.md
+대사 전문:    ai/prompts/missions.md
 
-문서와 코드가 어긋나는 것을 막기 위해 미션 정의를 여기 한 곳에 둡니다.
-5주차 프롬프트 템플릿이 이 값을 그대로 읽어 씁니다.
+원본 80개 중 **현재 하드웨어로 판정 가능한 5개**를 골라 구현 대상으로 삼습니다.
+단계 구성과 미션 명칭은 원본을 그대로 따릅니다.
 """
 
 from __future__ import annotations
@@ -15,6 +16,15 @@ from enum import Enum
 from app.schemas import Led, OledExpression, Vibe
 
 MAX_SPEECH_LEN = 45  # 1학기 압축 규칙. 공백 포함
+
+
+class Stage(int, Enum):
+    """원본 4단계. 은둔 → 사회 복귀로 이어지는 서사 축입니다."""
+
+    SYSTEM_CHECK = 1  # 시스템 점검 — 방 안, 자기 돌봄
+    AWAKENING = 2  # 감각의 깨움 — 창을 열고 경계 확장
+    SURFACE = 3  # 행성 표면 탐사 — 실제 외출과 산책
+    CONTACT = 4  # 현지인과 교신 — 사회 복귀
 
 
 class MissionState(str, Enum):
@@ -38,6 +48,7 @@ class SensorType(str, Enum):
     LUX = "LUX"
     ACCEL = "ACCEL"
     GPS = "GPS"
+    SELF_REPORT = "SELF_REPORT"  # 앱 미션 완료 버튼. 센서 판정 불가한 미션용
 
 
 @dataclass(frozen=True)
@@ -47,7 +58,6 @@ class HwSignal:
     oled: OledExpression
 
 
-# 상황별 하드웨어 신호. 1주차 확정 enum만 사용합니다.
 SIGNAL_SUCCESS = HwSignal(Led.RAINBOW, Vibe.STRONG_DOUBLE, OledExpression.STAR_EYES)
 SIGNAL_TIMEOUT = HwSignal(Led.DIM_BLUE, Vibe.SHORT, OledExpression.IDLE_EYES)
 SIGNAL_DEFERRED = HwSignal(Led.DIM_BLUE, Vibe.SOFT_CONTINUOUS, OledExpression.IDLE_EYES)
@@ -57,114 +67,151 @@ SIGNAL_DEFERRED = HwSignal(Led.DIM_BLUE, Vibe.SOFT_CONTINUOUS, OledExpression.ID
 @dataclass(frozen=True)
 class Mission:
     mission_id: str
-    name: str
-    stage: int
+    name: str  # 원본 미션 명칭을 그대로 사용
+    stage: Stage
     sensor: SensorType
     success_condition: str
     timeout_sec: int | None
     propose: tuple[str, ...]
     success: tuple[str, ...]
     retry: tuple[str, ...]
-    fallback_mission_id: str | None = None  # 거부 시 제안할 실내 대체 미션
-    active: bool = True  # 7주차 이전에는 GPS 미션 비활성
+    origin_verification: str  # 원본 '검증 방법' 원문
+    fallback_mission_id: str | None = None  # 거부 시 제안할 대체 미션
+    active: bool = True
     notes: tuple[str, ...] = field(default_factory=tuple)
 
 
 MISSIONS: tuple[Mission, ...] = (
     Mission(
-        mission_id="m_touch_ack",
-        name="교신 응답",
-        stage=1,
+        mission_id="m_warm_touch",
+        name="아침 온기 나누기",
+        stage=Stage.SYSTEM_CHECK,
         sensor=SensorType.TOUCH,
-        success_condition="첫 터치 시각 기준 2000ms 이내 터치 3회",
-        timeout_sec=60,
+        success_condition="터치 신호가 3초 이상 연속 유지",
+        timeout_sec=120,
+        origin_verification="터치 센서가 3초 이상 연속 신호 감지",
         propose=(
-            "치직- 대장님, 수신 확인차 본체를 세 번 두드려 주십시오. 오버",
-            "치직- 교신 감도 점검. 본체를 세 번 두드려 주십시오. 오버",
+            "치직- 대장님, 키링을 손바닥으로 3초간 감싸 쥐어 주십시오. 오버",
+            "치직- 온기 수신 대기 중. 3초간 감싸 쥐어 주십시오, 대장님. 오버",
         ),
         success=(
-            "치직- 교신 감도 양호! 신호 선명하게 수신했습니다. 라저",
-            "치직- 수신 완료! 대장님 신호 또렷합니다. 라저",
+            "치직- 대장님의 온기 수신 완료. 회로가 예열됐습니다. 라저",
+            "치직- 온기 확인! 오늘 하루도 무사히 착륙해 봐요, 대장님. 라저",
         ),
         retry=(
-            "치직- 신호가 약합니다. 한 번만 더 두드려 주십시오. 오버",
-            "치직- 감도 부족. 조금 더 또렷하게 두드려 주십시오. 오버",
+            "치직- 온기 신호가 끊겼습니다. 조금 더 오래 쥐어 주십시오. 오버",
+            "치직- 수신 미완. 천천히 다시 시도하셔도 됩니다. 교신 종료",
         ),
-        notes=("HW 확인 필요: 터치 디바운스 최소 50ms. 채터링 시 1회가 3회로 잡힘",),
+        notes=(
+            "원본 1단계 첫 미션. 연속 유지 판정이라 3회 카운트보다 오탐이 적음",
+            "HW 확인: 손에 쥔 상태의 정전용량 변화가 3초간 안정적으로 잡히는지",
+        ),
     ),
     Mission(
-        mission_id="m_light_vent",
-        name="기지 환기",
-        stage=2,
+        mission_id="m_engine_start",
+        name="엔진 시동 인사",
+        stage=Stage.SYSTEM_CHECK,
+        sensor=SensorType.ACCEL,
+        success_condition="짧고 강한 충격 2회 (간격 300~1500ms)",
+        timeout_sec=300,
+        origin_verification="가속도 센서가 짧고 강한 충격 2회 감지",
+        propose=(
+            "치직- 대장님, 제 머리를 두 번 톡톡 두드려 깨워 주십시오. 오버",
+            "치직- 엔진 시동 대기 중. 두 번 두드려 주십시오, 대장님. 오버",
+        ),
+        success=(
+            "치직- 대장님 응답 확인! 엔진 가동 준비 완료됐습니다. 오버",
+            "치직- 시동 성공! 오늘의 미션을 하달해 주시겠습니까. 라저",
+        ),
+        retry=(
+            "치직- 충격 감지 실패. 조금 더 또렷하게 두드려 주십시오. 오버",
+            "치직- 신호가 약합니다. 한 번 더 부탁드립니다, 대장님. 오버",
+        ),
+        notes=(
+            "원본은 '두드려 깨우기'. 흔들기(궤도 회전 테스트)와 달리 충격 패턴이라 걷기와 구분이 쉬움",
+            "HW 실측 필요: 충격 임계값과 2회 간격 범위",
+        ),
+    ),
+    Mission(
+        mission_id="m_solar_panel",
+        name="태양광 패널 전면 개방",
+        stage=Stage.AWAKENING,
         sensor=SensorType.LUX,
         success_condition="제안 시점 50 lux 이하 → 10분 내 200 lux 이상이 연속 30초 유지",
         timeout_sec=600,
+        origin_verification="조도 센서가 낮은 수치에서 급격히 상승하여 일정 시간 유지",
         propose=(
-            "치직- 기지 광량 부족. 태양광 충전을 위해 창문 개방 요청. 오버",
-            "치직- 기지가 어둡습니다. 광원 확보를 권장합니다, 대장님. 오버",
+            "치직- 기지 광량 부족. 커튼을 열어 패널을 개방해 주십시오. 오버",
+            "치직- 태양 에너지 수신 대기 중. 창을 열어 주십시오, 대장님. 오버",
         ),
         success=(
-            "치직- 광량 급상승! 기지 에너지 충전 완료입니다. 라저",
-            "치직- 태양광 수신 양호! 기지 밝아졌습니다, 대장님. 라저",
+            "치직- 태양 에너지 쏟아집니다! 기지 밝기 최적화 완료. 라저",
+            "치직- 광량 급상승! 기분이 한결 환해지네요, 대장님. 라저",
         ),
         retry=(
             "치직- 아직 어둡습니다. 준비되시면 다시 시도해 주십시오. 오버",
             "치직- 광량 변화 미미. 천천히 하셔도 됩니다. 교신 종료",
         ),
-        fallback_mission_id="m_touch_ack",
+        fallback_mission_id="m_warm_touch",
         notes=(
-            "조명을 켠 것과 창문을 연 것은 센서로 구분 불가. 대사를 '광량 확보'로 포괄함",
-            "30초 유지 조건은 손전등이 스치는 것을 성공으로 오판하지 않기 위함",
+            "원본의 '일정 시간 유지'를 30초로 구체화. 손전등이 스치는 것을 오판하지 않기 위함",
+            "커튼을 연 것과 전등을 켠 것은 센서로 구분 불가. 원본 1단계 '태양광 패널 점검'(전등)과 사실상 같은 판정",
         ),
     ),
     Mission(
-        mission_id="m_accel_wake",
-        name="기상 점검",
-        stage=3,
-        sensor=SensorType.ACCEL,
-        success_condition="가속도 임계 이상 샘플이 3초 구간의 60% 이상",
-        timeout_sec=300,
-        propose=(
-            "치직- 생체 신호 점검. 본체를 3초간 흔들어 주십시오. 오버",
-            "치직- 대장님 컨디션 확인차 본체를 흔들어 주십시오. 오버",
-        ),
-        success=(
-            "치직- 생체 반응 정상! 오늘도 탐사 가능 상태입니다. 라저",
-            "치직- 신호 확인! 대장님 컨디션 양호합니다. 라저",
-        ),
-        retry=(
-            "치직- 진동 감지 실패. 조금 더 크게 흔들어 주십시오. 오버",
-            "치직- 신호가 약합니다. 한 번 더 부탁드립니다, 대장님. 오버",
-        ),
-        notes=(
-            "HW 실측 필요: 임계값 미확정. 제안값 ||a|-1g| >= 0.8g",
-            "배타 조건: m_gps_scout 세션 활성 중에는 제안·판정하지 않음. 걷기로 자동 완료됨",
-        ),
-    ),
-    Mission(
-        mission_id="m_gps_scout",
-        name="외부 정찰",
-        stage=4,
+        mission_id="m_basecamp_100m",
+        name="베이스캠프 반경 확보",
+        stage=Stage.SURFACE,
         sensor=SensorType.GPS,
-        success_condition="탐사 세션 누적 이동 거리 300m 이상",
+        success_condition="집 출발 후 누적 이동 거리 100m 이상",
         timeout_sec=None,  # 세션 종료 시 판정
+        origin_verification="핸드폰 GPS 기반 이동 거리 측정 (실시간 지도 트래킹)",
         propose=(
-            "치직- 기지 밖 300m 정찰 임무를 제안합니다, 대장님. 오버",
-            "치직- 외부 행성 표면 정찰을 권장합니다. 300m면 충분합니다. 오버",
+            "치직- 베이스캠프 반경 100m 확보 임무를 제안합니다. 오버",
+            "치직- 기지 밖 100m 지점까지 정찰을 권장합니다, 대장님. 오버",
         ),
         success=(
-            "치직- 정찰 완수! 행성 데이터 300m분 확보했습니다. 라저",
-            "치직- 대장님 귀환 확인! 탐사 기록 본부 전송 완료. 라저",
+            "치직- 베이스캠프 주변 안전 확인 완료. 대기 질 양호합니다. 라저",
+            "치직- 정찰 완수! 조금 더 깊이 탐사해 볼까요, 대장님. 라저",
         ),
         retry=(
             "치직- 정찰 중단 확인. 언제든 재개 가능합니다. 교신 종료",
             "치직- 여기까지도 훌륭합니다. 기록 보관하겠습니다. 교신 종료",
         ),
-        fallback_mission_id="m_light_vent",
+        fallback_mission_id="m_solar_panel",
         active=False,  # 7주차 GPS 연동 이후 활성화
         notes=(
-            "미달 시에도 실패 처리하지 않고 이동 거리를 부분 달성으로 기록",
+            "원본 거리는 100m. 300m는 근거 없는 상향이었음",
             "앱 확인 필요: 샘플 간 5m 미만 무시(드리프트), 10km/h 초과 구간 제외(차량)",
+            "100m는 GPS 오차(±10m)와 가까우므로 드리프트 필터가 특히 중요",
+        ),
+    ),
+    Mission(
+        mission_id="m_first_greeting",
+        name="첫 번째 외교적 수사",
+        stage=Stage.CONTACT,
+        sensor=SensorType.SELF_REPORT,
+        success_condition="앱에서 사용자가 완료 보고",
+        timeout_sec=None,
+        origin_verification="마이크 센서 및 STT로 인사말 키워드 추출",
+        propose=(
+            "치직- 현지인에게 인사 교신을 시도해 보시겠습니까, 대장님. 오버",
+            "치직- 외교 임무 제안. 점원에게 인사 한마디 어떠십니까. 오버",
+        ),
+        success=(
+            "치직- 현지인과 첫 교신 성공! 목소리 주파수 당당했습니다. 라저",
+            "치직- 외교적 첫걸음 확인! 대장님, 아주 훌륭했습니다. 라저",
+        ),
+        retry=(
+            "치직- 다음 기회에 시도해도 좋습니다. 서두르지 마십시오. 교신 종료",
+            "치직- 접수. 준비되셨을 때 다시 보고해 주십시오. 교신 종료",
+        ),
+        fallback_mission_id="m_solar_panel",
+        active=False,  # 앱 미션 완료 버튼 구현 필요
+        notes=(
+            "⚠️ 원본 검증 방법(상시 마이크 + STT)은 채택하지 않음. 타인과의 대화를 상시 청취해야 하므로 "
+            "본인과 상대방 모두의 개인정보 문제가 발생함",
+            "자가 보고로 대체. 4단계 서사를 유지하면서 프라이버시 문제를 피하는 유일한 방법",
         ),
     ),
 )
