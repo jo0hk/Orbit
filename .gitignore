@@ -28,7 +28,6 @@ captures/
 # PlatformIO / Arduino (하드웨어)
 .pio/
 .pioenvs/
-wifi_config.h
 
 # Model weights (HF Hub 또는 별도 스토리지로 관리)
 *.pt

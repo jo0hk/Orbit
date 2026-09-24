@@ -2,6 +2,7 @@
 #include "TouchHandler.h"
 #include "OrbitSleep.h"
 #include "OrbitFace.h"
+#include "motion.h"
 
 #define LED_PIN      18
 #define TOUCH_PIN    14
@@ -47,6 +48,8 @@ void setup() {
 
   Serial.begin(115200);
 
+  setupMotion();
+
   // 1. 딥슬립 시스템 초기화 및 원인 진단
   initSleepSystem();
 
@@ -66,6 +69,43 @@ void setup() {
 
 void loop() {
   face.update();
+
+  // 자이로 가속도 관련 코드
+  static unsigned long lastMotionTick = 0;
+  static unsigned long lastWalkingTime = 0;
+
+  if (millis() - lastMotionTick >= 20) {
+    lastMotionTick = millis();
+    MotionResult motion = updateMotion();
+
+    // 1) 걸음 수 체크
+    if (motion.stepDetected) {
+      lastActivityTime = millis();
+      lastWalkingTime = millis();
+      
+      Serial.print("[모션] 현재 걸음: ");
+      Serial.print(motion.currentSteps);
+      Serial.println("보");
+    }
+
+    // 2) 흔들기 감지
+    if (motion.isShaken) {
+      lastActivityTime = millis();
+
+      //  마지막으로 걸은 지 3초가 안 지났으면 어지러움 무시
+      if (millis() - lastWalkingTime > 3000) {
+        Serial.println("[모션] 오빗이 어지러움을 느낌");
+
+        face.setExpression(EXPR_SAD);
+        face.update();
+
+        orbit.playFadeEffect(180, 0, 255, 1500); // 보라색 LED
+        face.setExpression(EXPR_NORMAL);
+      } else {
+        Serial.println("[모션] 산책 중 발생한 반동이므로 어지러움 무시함");
+      }
+    }
+  }
 
   // [연동시 주석 해제] 네트워크 유지 루프
   // handleTouchNetwork(); 
