@@ -28,6 +28,23 @@ captures/
 # PlatformIO / Arduino (하드웨어)
 .pio/
 .pioenvs/
+wifi_config.h
+
+# Model weights (HF Hub 또는 별도 스토리지로 관리)
+*.pt
+*.pth
+*.ckpt
+*.onnx
+*.safetensors
+*.bin
+
+# AI 산출물 / 캐시
+ai/models/*
+!ai/models/.gitkeep
+ai/outputs/
+.cache/
+*.wav
+*.mp3
 
 # Env
 .env
@@ -40,5 +57,5 @@ captures/
 dist/
 build/
 
-# [하드웨어] 비공개 설정
-wifi_config.h
+# AI 측정 도구 산출물
+ai/tools/smoke_result.json

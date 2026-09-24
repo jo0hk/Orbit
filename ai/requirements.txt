@@ -1,0 +1,41 @@
+# ─────────────────────────────────────────────────────────────
+# Orbit AI Server — 의존성
+#
+# PyTorch는 CPU 전용 휠로 먼저 설치하세요 (기본 설치는 CUDA 포함 2GB+):
+#   pip install torch --index-url https://download.pytorch.org/whl/cpu
+#   pip install -r requirements.txt
+#
+# pydub의 low_pass_filter는 ffmpeg 바이너리가 필요합니다.
+#   Windows: winget install ffmpeg   /   Ubuntu: apt install ffmpeg
+# ─────────────────────────────────────────────────────────────
+
+# --- Web / Serving ---
+fastapi
+uvicorn[standard]
+python-multipart          # 음성 파일 업로드
+pydantic-settings
+
+# --- LLM (Gemini 2.5 Flash) ---
+google-genai              # 구 google.generativeai는 deprecated
+tenacity                  # 503 UNAVAILABLE 대응 Exponential Backoff
+
+# --- STT ---
+faster-whisper            # Colab의 openai-whisper 대체. CPU에서 약 4배 빠름
+
+# --- 감정 분석 (PyTorch) ---
+torch                     # 위 CPU 전용 휠로 별도 설치 권장
+transformers              # klue/roberta-small
+librosa                   # MFCC / Pitch 추출
+numpy
+
+# --- TTS / 무전 톤 후처리 ---
+edge-tts                  # ko-KR-InJoonNeural
+pydub                     # low_pass_filter + 화이트 노이즈 합성
+
+# --- 기타 ---
+python-dotenv
+httpx
+
+# --- 개발용 ---
+pytest
+pytest-asyncio
