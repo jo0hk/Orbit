@@ -70,11 +70,11 @@ void setup() {
 void loop() {
   face.update();
 
-  // 자이로 가속도 관련 코드
+  // 가속도 자이로
   static unsigned long lastMotionTick = 0;
   static unsigned long lastWalkingTime = 0;
 
-  if (millis() - lastMotionTick >= 20) {
+  if (millis() - lastMotionTick >= 10) {
     lastMotionTick = millis();
     MotionResult motion = updateMotion();
 
@@ -99,7 +99,7 @@ void loop() {
         face.setExpression(EXPR_SAD);
         face.update();
 
-        orbit.playFadeEffect(180, 0, 255, 1500); // 보라색 LED
+        orbit.playFadeEffect(180, 0, 255, 200); // 보라색 LED
         face.setExpression(EXPR_NORMAL);
       } else {
         Serial.println("[모션] 산책 중 발생한 반동이므로 어지러움 무시함");

@@ -3,17 +3,17 @@
 
 const int MPU_I2C_ADDR = 0x68;
 
-// 흔들기 관련 변수
+// 흔들기 변수
 static float prevAx = 0, prevAy = 0, prevAz = 0;
 static int shakeDirectionFlips = 0;
 static int lastDirection = 0;
 static unsigned long lastShakeActionTime = 0;
 const unsigned long SHAKE_WINDOW = 1000;
 
-// 만보기 관련 변수
-const float STEP_PEAK_THRESHOLD = 1.15;
-const float STEP_VALLEY_THRESHOLD = 0.95;
-const unsigned long MIN_STEP_INTERVAL = 200;
+// 만보기 변수
+const float STEP_PEAK_THRESHOLD = 1.75;
+const float STEP_VALLEY_THRESHOLD = 1.60;
+const unsigned long MIN_STEP_INTERVAL = 180;
 
 enum StepState { WAITING_FOR_PEAK, WAITING_FOR_VALLEY };
 static StepState stepState = WAITING_FOR_PEAK;
@@ -93,7 +93,7 @@ MotionResult updateMotion() {
     float totalGyroSpeed = sqrt(gx * gx + gy * gy + gz * gz);
 
     static unsigned long lastDebugPrint = 0;
-    if (now - lastDebugPrint > 500) {
+    if (now - lastDebugPrint > 200) { // 로그 출력 주기를 200ms로 빠르게 단축
       lastDebugPrint = now;
       Serial.print("센서 가속도(mag): ");
       Serial.print(mag);
@@ -133,7 +133,7 @@ MotionResult updateMotion() {
           stepState = WAITING_FOR_PEAK;
           res.stepDetected = true;
           res.currentSteps = totalStepCount;
-        } else if (now - peakTime > 500) {
+        } else if (now - peakTime > 900) {
           stepState = WAITING_FOR_PEAK;
         }
         break;
