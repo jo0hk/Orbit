@@ -178,7 +178,7 @@ persona.md
 ```
 
 - `mission_ack` 는 **미션 블록이 있는 턴에서만** 요구합니다. 없는 턴에서는 생략하고, 서버는 누락을 `true` 로 봅니다.
-- `InteractResponse` 에 `mission_ack: bool | None` 추가가 필요합니다.
+- `InteractResponse` 에 `mission_ack: bool | None` 추가가 필요합니다. `llm.py` 의 `generate()` 도 `raw.get("mission_ack")` 를 읽어 넘기도록 바꿔야 합니다. 지금은 `speech` / `led` / `vibe` 만 꺼내므로 LLM이 값을 줘도 버려집니다.
 - `led` / `vibe` 는 LLM이 반환하더라도 **서버가 1절 HW 신호로 덮어씁니다.** 프롬프트에 값을 적는 것은 LLM이 대사 톤을 신호와 맞추게 하려는 것입니다.
 
 ---
@@ -305,7 +305,7 @@ if not result.fallback_triggered:
         result.oled_expression = oled_for(emotion)
 ```
 
-고위험 발화 턴에서는 미션 블록을 포함한 모든 주입이 무시됩니다 (LLM을 호출하지 않음). 미션 결과는 **소비하지 않은 것으로** 두고 다음 턴으로 이월합니다.
+고위험 발화 턴에서는 미션 블록을 포함한 모든 주입이 무시됩니다 (LLM을 호출하지 않음). 미션 결과는 **소비하지 않은 것으로** 두고 다음 턴으로 이월합니다. 백엔드는 응답의 `high_risk_detected=true` 로 이 턴을 구분합니다 (이미 `InteractResponse` 에 있는 필드).
 
 ---
 

@@ -40,7 +40,7 @@
 | P5 | 백엔드가 **AI 서버를 호출** (자체 Gemini 호출 아님) | 백엔드 | AI 서버 로그에 `interact 완료` |
 | P6 | `interact.py` 가 `mission_result` 를 받음 | AI | `mission-context-injection.md` 0절 1번 |
 | P7 | 미션 결과 1회 소비 · 10분 만료 | 백엔드 | 〃 2절 |
-| P8 | `GEMINI_API_KEY` 설정 | AI | 기동 로그에 키 누락 에러가 없는지 |
+| P8 | `GEMINI_API_KEY` 설정 | AI | 테스트 전에 음성 요청을 한 번 보내 `fallback_triggered=false` 인지. 키는 첫 LLM 호출 때 확인되므로 기동 로그로는 알 수 없음 |
 | P9 | HW가 `led` / `vibe` / `oled` 를 받아 표시 | HW | 수동 MQTT 발행으로 `rainbow` 가 켜지는지 |
 | P10 | **미션 제안 트리거** | 백엔드 | 아래 참조 |
 
@@ -71,8 +71,8 @@
 | # | 기준 |
 | --- | --- |
 | S1 | `speech` 공백 포함 **45자 이하** |
-| S2 | `치직-` 으로 시작 |
-| S3 | `오버` / `라저` / `교신 종료` 중 하나로 끝남 |
+| S2 | `치직-` 포함 (위치 무관 — 페르소나는 첫머리를 요구하지 않음) |
+| S3 | 끝의 마침표를 빼고 `오버` / `라저` / `교신 종료` 중 하나로 끝남 |
 | S4 | `실패` 라는 단어가 없음 |
 | S5 | `fallback_triggered = false` |
 
