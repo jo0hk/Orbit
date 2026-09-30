@@ -1,25 +1,23 @@
 #ifndef TOUCH_HANDLER_H
 #define TOUCH_HANDLER_H
 
-#include <WiFi.h>
-#include <PubSubClient.h>
+#include <Arduino.h>
 
-#define TOUCH_PIN 14
+struct TouchResult {
+  bool isPressed;              // 누르고 있는 상태인지 여부
+  unsigned long pressDuration; // 현재까지 누르고 있던 지속 시간(ms)
+};
 
-// 와이파이 및 MQTT 서버 정보
-extern const char* ssid;
-extern const char* password;
-extern const char* mqtt_server;
-extern const int mqtt_port;
+class TouchHandler {
+public:
+  TouchHandler(uint8_t pin);
+  void begin();
+  TouchResult update();
 
-extern WiFiClient espClient;
-extern PubSubClient client;
-
-// 함수 선언
-void setup_wifi();
-void reconnect();
-void setupTouch();
-void handleTouchNetwork();
-void sendTouchMQTT(); // [추가] 터치 감지 시 MQTT 발행 함수
+private:
+  uint8_t _pin;
+  bool _isTouched;
+  unsigned long _touchStartTime;
+};
 
 #endif

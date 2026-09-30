@@ -5,13 +5,16 @@
 #include <U8g2lib.h>
 #include <Wire.h>
 
-// 표정 상태 정의
+// 표정 상태 정의 (별 눈만 제외)
 enum FaceExpression {
-  EXPR_NORMAL,    // 평상시 (눈 뜬 상태 + 미소)
-  EXPR_BLINK,     // 눈 감은 표정
-  EXPR_HAPPY,     // 기쁨
+  EXPR_NORMAL,    // 평상시
+  EXPR_BLINK,     // 눈 감음
+  EXPR_HAPPY,     // 기쁨/쓰다듬기
   EXPR_SAD,       // 슬픔
-  EXPR_SLEEP      // 수면 모드
+  EXPR_SLEEP,     // 수면 모드
+  EXPR_DIZZY,     // 어지러움
+  EXPR_LISTENING, // 음성 수신 중
+  EXPR_THINKING   // 생각 중
 };
 
 class OrbitFace {
@@ -20,17 +23,16 @@ private:
   FaceExpression currentExpr;
   unsigned long lastBlinkTime;
   unsigned long blinkInterval;
-  bool isBlinking;
 
   void drawFace(bool isClosed, bool isHappy, bool isSad);
 
 public:
   OrbitFace();
   void begin();
-  void setExpression(FaceExpression expr);
-  void update();             // loop()에서 주기적 깜빡임 처리
-  void playWakeupAnimation(); // 기상 시 서서히 눈뜨기
-  void playSleepAnimation(); // 딥슬립 직전 잠드는 표정
+  void setExpression(FaceExpression expr); // 표정 변경
+  void update();                           // 눈 깜빡임 처리
+  void playWakeupAnimation();              // 기상 시 서서히 눈뜨는 애니메이션
+  void playSleepAnimation();               // 딥슬립 전 잠드는 연출 및 화면 끄기
 };
 
 #endif

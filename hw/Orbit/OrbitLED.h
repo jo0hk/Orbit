@@ -14,6 +14,8 @@ public:
   // 초기화 및 기본 색상 설정 함수
   void begin();
   void showColor(int r, int g, int b, int brightness);
+  void setAllColor(int r, int g, int b);
+  void update();
   
   // 효과 함수
   void breathEffect(int r, int g, int b);
