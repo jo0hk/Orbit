@@ -10,9 +10,9 @@ static int lastDirection = 0;
 static unsigned long lastShakeActionTime = 0;
 const unsigned long SHAKE_WINDOW = 1000;
 
-// 만보기 변수
-const float STEP_PEAK_THRESHOLD = 1.75;
-const float STEP_VALLEY_THRESHOLD = 1.60;
+// 만보기 변수 (정상 중력 1.0g 기준으로 재조정)
+const float STEP_PEAK_THRESHOLD = 1.35;
+const float STEP_VALLEY_THRESHOLD = 0.90;
 const unsigned long MIN_STEP_INTERVAL = 180;
 
 enum StepState { WAITING_FOR_PEAK, WAITING_FOR_VALLEY };
@@ -72,9 +72,10 @@ MotionResult updateMotion() {
     int16_t rawGy = Wire.read() << 8 | Wire.read();
     int16_t rawGz = Wire.read() << 8 | Wire.read();
 
-    float ax = rawAx / 8192.0;
-    float ay = rawAy / 8192.0;
-    float az = rawAz / 8192.0;
+    // 분모를 16384.0으로 변경하여 정상 1.0g로 보정
+    float ax = rawAx / 16384.0;
+    float ay = rawAy / 16384.0;
+    float az = rawAz / 16384.0;
 
     float gx = rawGx / 65.5;
     float gy = rawGy / 65.5;
@@ -93,7 +94,7 @@ MotionResult updateMotion() {
     float totalGyroSpeed = sqrt(gx * gx + gy * gy + gz * gz);
 
     static unsigned long lastDebugPrint = 0;
-    if (now - lastDebugPrint > 200) { // 로그 출력 주기를 200ms로 빠르게 단축
+    if (now - lastDebugPrint > 200) {
       lastDebugPrint = now;
       Serial.print("센서 가속도(mag): ");
       Serial.print(mag);

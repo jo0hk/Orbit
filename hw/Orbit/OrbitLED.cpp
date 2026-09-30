@@ -5,7 +5,28 @@ OrbitLED::OrbitLED(int n, int pin)
 
 void OrbitLED::begin() {
   pixels.begin();
+  pixels.setBrightness(30);
   pixels.show();
+}
+
+void OrbitLED::setAllColor(int r, int g, int b) {
+  for (int j = 0; j < _numPixels; j++) {
+    pixels.setPixelColor(j, pixels.Color(r, g, b));
+  }
+  pixels.setBrightness(100);
+  pixels.show();
+}
+
+void OrbitLED::showColor(int r, int g, int b, int brightness) {
+  pixels.setBrightness(brightness);
+  for (int j = 0; j < _numPixels; j++) {
+    pixels.setPixelColor(j, pixels.Color(r, g, b));
+  }
+  pixels.show();
+}
+
+void OrbitLED::update() {
+  // 빈 함수 유지 (충돌 방지)
 }
 
 // 평상시 숨쉬기 효과, 밝기 30 고정

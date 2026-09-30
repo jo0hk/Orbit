@@ -1,36 +1,37 @@
-#include "OrbitLED.h"
+#include <WiFi.h>
+#include "wifi_config.h"
 #include "TouchHandler.h"
 #include "OrbitSleep.h"
 #include "OrbitFace.h"
+#include "OrbitLED.h"
 #include "motion.h"
 
-#define LED_PIN      18
-#define TOUCH_PIN    14
-#define VIB_PIN      12
-#define NUMPIXELS    1
-#define BRIGHT_IDLE  30
+// 핀 맵 정의
+#define LED_PIN       18   // LED 데이터 핀
+#define TOUCH_PIN     14   // 터치 센서 입력 핀 (TTP223 등)
+#define VIB_PIN       12   // 진동 모터 제어 핀
+#define NUMPIXELS     1    // 제어할 LED 소자 개수
 
-unsigned long touchResponseTime = 5000; 
-unsigned long talkResponseTime  = 5000; 
-unsigned long lastActivityTime  = 0;
+unsigned long lastActivityTime = 0; // 딥슬립 타이머 계산용 마지막 상호작용 시간
+String deviceId = "";               // 기기 고유 식별자 (MAC 주소 기반)
 
+// 하드웨어 제어 객체 생성
 OrbitLED orbit(NUMPIXELS, LED_PIN);
 OrbitFace face;
+TouchHandler touch(TOUCH_PIN);
 
-// 딥슬립 중에도 단계 색상을 기억하도록 RTC 메모리에 저장
+// 딥슬립 상태에서도 현재 단계별 색상을 유지하도록 RTC 메모리에 저장
 RTC_DATA_ATTR int curR = 135;
 RTC_DATA_ATTR int curG = 206;
 RTC_DATA_ATTR int curB = 250;
 
-// 진동 패턴 제어 함수
+// 진동 패턴 제어 (1: 기상 시 짧은 진동, 2: 심장박동 두근-두근)
 void playVibration(int patternType) {
   if (patternType == 1) {
-    // 1번: 기상 햅틱 (짧게 1회 '징-')
     digitalWrite(VIB_PIN, HIGH);
     delay(150);
     digitalWrite(VIB_PIN, LOW);
   } else if (patternType == 2) {
-    // 2번: 터치/심장박동 (두근-두근 2회)
     digitalWrite(VIB_PIN, HIGH); delay(80);
     digitalWrite(VIB_PIN, LOW);  delay(100);
     digitalWrite(VIB_PIN, HIGH); delay(80);
@@ -38,126 +39,148 @@ void playVibration(int patternType) {
   }
 }
 
+// AI 응답 및 MQTT 수신용 명령 처리
+void applyHardwareAction(String oledCmd, String ledCmd, String vibeCmd) {
+  // 1. OLED 표정 설정
+  if (oledCmd == "sad_eyes" || oledCmd == "EXPR_SAD") face.setExpression(EXPR_SAD);
+  else if (oledCmd == "idle_eyes" || oledCmd == "EXPR_NORMAL") face.setExpression(EXPR_NORMAL);
+  else if (oledCmd == "listening" || oledCmd == "EXPR_LISTENING") face.setExpression(EXPR_LISTENING);
+  else if (oledCmd == "thinking" || oledCmd == "EXPR_THINKING") face.setExpression(EXPR_THINKING);
+  else if (oledCmd == "dizzy" || oledCmd == "EXPR_DIZZY") face.setExpression(EXPR_DIZZY);
+  face.update();
+
+  // 2. LED
+  if (ledCmd == "rainbow") {
+    orbit.playFadeEffect(255, 100, 255, 800);
+  } else if (ledCmd == "dim_blue") {
+    orbit.setAllColor(0, 50, 150);
+  } else if (ledCmd == "purple") {
+    orbit.setAllColor(180, 0, 255);
+  }
+
+  // 3. 햅틱 진동 피드백
+  if (vibeCmd == "strong_double") {
+    playVibration(2);
+  } else if (vibeCmd == "short" || vibeCmd == "short_pulse") {
+    playVibration(1);
+  } else if (vibeCmd == "soft_continuous") {
+    digitalWrite(VIB_PIN, HIGH);
+    delay(400);
+    digitalWrite(VIB_PIN, LOW);
+  }
+}
+
 void setup() {
   orbit.begin();
   face.begin();
+  touch.begin();
 
-  pinMode(TOUCH_PIN, INPUT_PULLDOWN);
   pinMode(VIB_PIN, OUTPUT);
   digitalWrite(VIB_PIN, LOW);
 
   Serial.begin(115200);
-
   setupMotion();
+  initSleepSystem(); // 딥슬립 시스템 초기화 및 기상 원인 분석
 
-  // 1. 딥슬립 시스템 초기화 및 원인 진단
-  initSleepSystem();
-
-  // 2. 시스템 기상 피드백: 진동 + 눈 번쩍 뜨기 + 네오픽셀 테마색 0.5초 점등
+  // 시스템 부팅/기상 피드백
   playVibration(1);
-  face.playWakeupAnimation();
-  orbit.playFadeEffect(curR, curG, curB, 500);
+  face.playWakeupAnimation();               // 서서히 눈뜨기
+  orbit.playFadeEffect(curR, curG, curB, 500); // 현재 단계 색상으로 페이드
 
   lastActivityTime = millis();
 
-  // [연동시 주석 해제] TouchHandler 내부의 와이파이 및 MQTT 초기화 호출
-  // setupTouch();
+  // Wi-Fi 연결 및 MAC 주소 수집
+  WiFi.mode(WIFI_STA);
+  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+  
+  unsigned long wifiStart = millis();
+  while (WiFi.status() != WL_CONNECTED && millis() - wifiStart < 5000) {
+    delay(300);
+  }
 
-  Serial.println("--- Orbit Mission Control ---");
-  Serial.println("1~4: Phase Change, H: Happy, S: Sad");
+  deviceId = WiFi.macAddress();
 }
 
 void loop() {
-  face.update();
+  face.update(); // 눈 깜빡임 처리
+  unsigned long now = millis();
 
-  // 가속도 자이로
+  // 1. 가속도/자이로 감지
   static unsigned long lastMotionTick = 0;
   static unsigned long lastWalkingTime = 0;
 
-  if (millis() - lastMotionTick >= 10) {
-    lastMotionTick = millis();
+  if (now - lastMotionTick >= 10) {
+    lastMotionTick = now;
     MotionResult motion = updateMotion();
 
-    // 1) 걸음 수 체크
+    // 1) 걸음 감지 시 활동 시간 갱신
     if (motion.stepDetected) {
-      lastActivityTime = millis();
-      lastWalkingTime = millis();
-      
-      Serial.print("[모션] 현재 걸음: ");
-      Serial.print(motion.currentSteps);
-      Serial.println("보");
+      lastActivityTime = now;
+      lastWalkingTime = now;
     }
 
-    // 2) 흔들기 감지
+    // 2) 흔들기 감지: 최근 3초간 걸음이 없던 정지 상태에서 흔들릴 때만 어지러움 반응
     if (motion.isShaken) {
-      lastActivityTime = millis();
-
-      //  마지막으로 걸은 지 3초가 안 지났으면 어지러움 무시
-      if (millis() - lastWalkingTime > 3000) {
-        Serial.println("[모션] 오빗이 어지러움을 느낌");
-
-        face.setExpression(EXPR_SAD);
+      lastActivityTime = now;
+      if (now - lastWalkingTime > 3000) {
+        face.setExpression(EXPR_DIZZY);
         face.update();
-
-        orbit.playFadeEffect(180, 0, 255, 200); // 보라색 LED
+        orbit.playFadeEffect(180, 0, 255, 1200); // 보라색
         face.setExpression(EXPR_NORMAL);
-      } else {
-        Serial.println("[모션] 산책 중 발생한 반동이므로 어지러움 무시함");
+        face.update();
       }
     }
   }
 
-  // [연동시 주석 해제] 네트워크 유지 루프
-  // handleTouchNetwork(); 
+  // 2. 쓰다듬기(터치)
+  TouchResult touchRes = touch.update();
+  static bool wasTouching = false;
 
-  // [딥슬립 상시 감시] 30초간 입력 없으면 자동 잠들기
-  checkSleepTimer(lastActivityTime);
+  if (touchRes.isPressed) {
+    lastActivityTime = now; // 터치 중 딥슬립 타이머 리셋
 
-  // 1. 터치 인식 시
-  if (digitalRead(TOUCH_PIN) == HIGH) {
-    lastActivityTime = millis();
-    
-    // [연동시 주석 해제] 터치 이벤트 서버 전송
-    // sendTouchMQTT(); 
+    // 쓰다듬기 시작하는 첫 순간에만 심장박동 진동 출력
+    if (!wasTouching) {
+      playVibration(2);
+      wasTouching = true;
+    }
 
+    // 쓰다듬는 동안 웃는 표정 및 노란 LED 고정 
     face.setExpression(EXPR_HAPPY);
-
-    // 터치 인터랙션 시 촉각 피드백 (심장박동 패턴)
-    playVibration(2);
-    
-    // 네오픽셀 이벤트 효과
-    orbit.playFadeEffect(255, 255, 0, touchResponseTime);
-
-    // 인터랙션 종료 후 평상시 표정으로 복귀
-    face.setExpression(EXPR_NORMAL);
-  }
-
-  // 2. 시리얼 입력
-  else if (Serial.available()) {
-    lastActivityTime = millis();
-    char input = Serial.read();
-
-    if (input == '1') { curR = 255; curG = 60; curB = 100; orbit.playFadeEffect(curR, curG, curB, 10000); }
-    else if (input == '2') { curR = 255; curG = 80; curB = 0; orbit.playFadeEffect(curR, curG, curB, 10000); }
-    else if (input == '3') { curR = 127; curG = 255; curB = 0; orbit.playFadeEffect(curR, curG, curB, 10000); }
-    else if (input == '4') { curR = 0; curG = 255; curB = 60; orbit.playFadeEffect(curR, curG, curB, 10000); }
-    
-    else if (input == 'h' || input == 'H') {
-      face.setExpression(EXPR_HAPPY); // 기쁨 표정
-      playVibration(2); // 기쁨 시 두근거림
-      orbit.playFadeEffect(255, 255, 0, talkResponseTime);
-      face.setExpression(EXPR_NORMAL); // 평상시 눈 복귀 
-    }
-    else if (input == 's' || input == 'S') { 
-      face.setExpression(EXPR_SAD);   // 슬픔 표정
-      playVibration(1); // 슬픔 시 무거운 진동
-      orbit.playFadeEffect(0, 0, 255, talkResponseTime); 
-      face.setExpression(EXPR_NORMAL); // 평상시 눈 복귀
-    }
-  }
-
-  // 3. 평상시
+    orbit.playFadeEffect(255, 200, 0, 1000); 
+  } 
   else {
+    // 손을 뗐을 때 평상시 표정으로 복귀
+    if (wasTouching) {
+      face.setExpression(EXPR_NORMAL);
+      face.update();
+      wasTouching = false;
+    }
+    // 평상시에는 현재 단계 색상으로 숨쉬기 효과 유지
     orbit.breathEffect(curR, curG, curB);
   }
+
+  // 3. 시리얼 테스트 명령 (단계 변경 1~4, 감정 테스트 h, s)
+  if (Serial.available()) {
+    lastActivityTime = now;
+    char input = Serial.read();
+
+    if (input == '1') { curR = 255; curG = 60; curB = 100; orbit.playFadeEffect(curR, curG, curB, 3000); }
+    else if (input == '2') { curR = 255; curG = 80; curB = 0; orbit.playFadeEffect(curR, curG, curB, 3000); }
+    else if (input == '3') { curR = 127; curG = 255; curB = 0; orbit.playFadeEffect(curR, curG, curB, 3000); }
+    else if (input == '4') { curR = 0; curG = 255; curB = 60; orbit.playFadeEffect(curR, curG, curB, 3000); }
+    else if (input == 'h' || input == 'H') {
+      applyHardwareAction("EXPR_HAPPY", "purple", "strong_double");
+      face.setExpression(EXPR_NORMAL);
+      face.update();
+    }
+    else if (input == 's' || input == 'S') { 
+      applyHardwareAction("EXPR_SAD", "dim_blue", "short");
+      face.setExpression(EXPR_NORMAL);
+      face.update();
+    }
+  }
+
+  // 4. 딥슬립 타이머 감시 (30초간 상호작용 없으면 진입)
+  checkSleepTimer(lastActivityTime);
 }
