@@ -5,7 +5,7 @@
 #include <U8g2lib.h>
 #include <Wire.h>
 
-// 표정 상태 정의 (별 눈만 제외)
+// 표정 상태 정의
 enum FaceExpression {
   EXPR_NORMAL,    // 평상시
   EXPR_BLINK,     // 눈 감음
