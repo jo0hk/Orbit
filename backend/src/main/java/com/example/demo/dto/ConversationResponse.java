@@ -1,5 +1,6 @@
 package com.example.demo.dto;
 
+import com.example.demo.entity.ConversationChannel;
 import com.example.demo.entity.Speaker;
 import lombok.Builder;
 import lombok.Getter;
@@ -15,4 +16,11 @@ public class ConversationResponse {
     private Speaker speaker;
     private String message;
     private LocalDateTime createdAt;
+
+    private String emotion;
+    private Integer stage;
+    private ConversationChannel channel;
+    private String requestId;
+
+
 }
