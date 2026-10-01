@@ -78,13 +78,13 @@ def build_high_risk_response() -> InteractResponse:
     """고위험 발화 대응 응답.
 
     하드웨어 신호는 차분하게 유지합니다.
-    축하·경고 패턴(rainbow, strong_double, short)을 쓰지 않습니다.
+    축하·경고 패턴(rainbow, strong_double, short_pulse)을 쓰지 않습니다.
     진동으로 놀라게 하지 않습니다.
     """
     return InteractResponse(
         speech=HIGH_RISK_SPEECH,
-        led=Led.DIM_BLUE,
+        led=Led.BLUE,
         vibe=Vibe.NONE,
-        oled_expression=OledExpression.SAD_EYES,
+        oled_expression=OledExpression.SAD,
         high_risk_detected=True,
     )

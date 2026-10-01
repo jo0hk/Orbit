@@ -39,60 +39,99 @@ class Emotion(str, Enum):
 # 하드웨어 제어 신호
 # ─────────────────────────────────────────────────────────────
 class Led(str, Enum):
-    """WS2812B 네오픽셀 패턴. 값 출처: 1학기 ContextInjector 프롬프트."""
+    """WS2812B 네오픽셀. AI가 보내는 이벤트 색입니다.
 
-    RAINBOW = "rainbow"        # 긍정/중립, 환경 양호
-    DIM_BLUE = "dim_blue"      # sad / fear, 또는 조도 50 lux 이하
-    DIM_WHITE = "dim_white"    # anger / disgust
-    ORANGE = "orange"          # 통신 장애 폴백
+    LED 공통 제어값(10-01 확정, docs/interface-spec-v1.md 3절)은 색깔 영어명입니다.
+    AI는 이 중 rainbow / blue 만 보냅니다. purple·yellow는 HW 내부 반응,
+    pink·orange·lime·green은 HW가 평상시 켜는 1~4단계 테마색입니다.
+    이벤트 색은 잠깐 켜진 뒤 단계 테마색으로 돌아갑니다.
+
+    ⚠️ HW applyHardwareAction 은 아직 "dim_blue" 라는 이름으로만 파랑을 받습니다.
+       HW가 "blue" 분기를 추가할 때까지 파랑 신호는 표시되지 않습니다.
+    """
+
+    RAINBOW = "rainbow"  # 긍정/중립, 미션 성공. 색 이름은 아니지만 축하 연출이라 예외로 둠
+    BLUE = "blue"        # sad / fear / anger / disgust, 조도 50 lux 이하, 미션 미달·보류, 비상·고위험
 
 
 class Vibe(str, Enum):
-    """PP-A811 진동 모터 패턴. 값 출처: 1학기 ContextInjector 프롬프트."""
+    """PP-A811 진동 모터 패턴. 09-17 공통 진동값 중 HW 구현분."""
 
-    STRONG_DOUBLE = "strong_double"    # 긍정/중립
-    SOFT_CONTINUOUS = "soft_continuous"  # sad / fear
-    CALM_WAVE = "calm_wave"            # anger / disgust
-    SHORT = "short"                    # 통신 장애 폴백
-    NONE = "none"                      # 서버 전용. LLM은 선택하지 않음 (고위험 발화 대응)
+    STRONG_DOUBLE = "strong_double"      # 긍정/중립, 미션 성공
+    SOFT_CONTINUOUS = "soft_continuous"  # sad / fear, 미션 보류
+    SHORT_PULSE = "short_pulse"          # anger / disgust, 미션 조건 미달, 비상
+    NONE = "none"                        # 서버 전용. LLM은 선택하지 않음 (고위험 발화 대응)
+    # calm_wave, two_short_taps 는 공통값에 있으나 HW 미구현. 구현되면 추가합니다.
 
 
 class OledExpression(str, Enum):
-    """OLED 픽셀 표정.
+    """OLED 픽셀 표정. 09-17 공통 제어값(EXPR_*) 중 AI 서버가 쓰는 것.
 
-    ⚠️ 1학기 노트북에는 구현되어 있지 않습니다. LLM은 speech/led/vibe
-       3종만 반환합니다. 아래 값은 페르소나 설정안(1주차 노션)에 적힌
-       묘사를 코드로 옮긴 제안이며, HW 파트와 미합의 상태입니다.
+    LLM은 반환하지 않고 서버가 감정·상황에서 파생합니다.
+    ⚠️ EXPR_HAPPY 는 HW applyHardwareAction 에 분기가 아직 없습니다 (HW 작업).
     """
 
-    IDLE_EYES = "idle_eyes"    # 평상시 동그란 픽셀 눈
-    STAR_EYES = "star_eyes"    # 기쁠 때 반짝이는 별 모양
-    SAD_EYES = "sad_eyes"
-    WIDE_EYES = "wide_eyes"
+    NORMAL = "EXPR_NORMAL"        # 평상시
+    HAPPY = "EXPR_HAPPY"          # 미션 성공, Vision 칭찬
+    SAD = "EXPR_SAD"              # sad / fear, 비상·고위험
+    LISTENING = "EXPR_LISTENING"  # 다시 말해 달라고 할 때 (무응답, STT 실패)
+    THINKING = "EXPR_THINKING"    # 처리 중
 
 
 def oled_for(emotion: Emotion) -> OledExpression:
-    """감정 → 표정 매핑.
+    """감정 → 표정 매핑. 서버에서 감정으로 파생합니다.
 
-    TODO(1주차): HW 파트와 합의 후 확정하세요. LLM이 직접 반환하게 할지,
-    서버에서 감정으로 파생할지도 결정 대상입니다. 현재는 파생 방식입니다.
+    anger / disgust 는 표정을 바꾸지 않습니다. 적대 발화에 오빗이 흔들리지
+    않는다는 예외 대화 3번 원칙과 같습니다.
     """
     return {
-        Emotion.SAD: OledExpression.SAD_EYES,
-        Emotion.FEAR: OledExpression.WIDE_EYES,
-        Emotion.ANGER: OledExpression.WIDE_EYES,
-        Emotion.DISGUST: OledExpression.WIDE_EYES,
-        Emotion.NEUTRAL: OledExpression.IDLE_EYES,
-    }.get(emotion, OledExpression.IDLE_EYES)
+        Emotion.SAD: OledExpression.SAD,
+        Emotion.FEAR: OledExpression.SAD,
+        Emotion.ANGER: OledExpression.NORMAL,
+        Emotion.DISGUST: OledExpression.NORMAL,
+        Emotion.NEUTRAL: OledExpression.NORMAL,
+    }.get(emotion, OledExpression.NORMAL)
+
+
+class CommonEmotion(str, Enum):
+    """09-17 회의에서 확정한 공통 감정값. 백엔드·앱이 쓰는 값입니다.
+
+    감정 모델 출력(Emotion)을 이 값으로 바꾸는 규칙은
+    app/core/emotion_map.py 와 docs/interface-spec-v1.md 2절에 있습니다.
+    백엔드 Emotion enum이 이 4개만 받으므로 대화 저장에는 반드시 이 값을 씁니다.
+    """
+
+    HAPPY = "happy"
+    SAD = "sad"
+    ANGRY = "angry"
+    CALM = "calm"
 
 
 class MissionResult(str, Enum):
-    """5주차: 미션 판정 결과. Context Injector에 주입됩니다."""
+    """AI 서버의 미션 판정 결과. Context Injector에 주입됩니다.
 
-    SUCCESS = "success"
-    FAIL = "fail"
-    RETRY = "retry"
-    NONE = "none"
+    FAILED(실패)는 두지 않습니다. 조건 미달은 RETRY(같은 날 다시 할 수 있음),
+    거부는 DEFERRED(보류, 결과 API를 호출하지 않음)입니다.
+    docs/mission-context-injection.md 1절, docs/stage-mission-judgement.md 3절
+    """
+
+    SUCCESS = "success"    # 백엔드 결과 API success:true
+    RETRY = "retry"        # 백엔드 결과 API success:false
+    DEFERRED = "deferred"  # 거부. 결과 API 호출 안 함
+    NONE = "none"          # 미션과 무관한 턴
+
+
+class WeatherCategory(str, Enum):
+    """2단계 미션 판정용 날씨 범주. 백엔드 Context API가 이 값으로 줍니다 (요청 사항).
+
+    docs/stage-mission-judgement.md 2절
+    """
+
+    CLEAR = "CLEAR"    # 맑음
+    CLOUDS = "CLOUDS"  # 흐림
+    RAIN = "RAIN"      # 비
+    SNOW = "SNOW"      # 눈
+    MIST = "MIST"      # 안개
 
 
 # ─────────────────────────────────────────────────────────────
@@ -141,7 +180,7 @@ class InteractResponse(BaseModel):
     speech: str
     led: Led
     vibe: Vibe
-    oled_expression: OledExpression = OledExpression.IDLE_EYES
+    oled_expression: OledExpression = OledExpression.NORMAL
 
     audio_url: str | None = Field(None, description="무전 톤 합성이 끝난 음성 파일 경로")
 
@@ -153,6 +192,9 @@ class InteractResponse(BaseModel):
     # 매핑 규칙은 docs/interface-spec-v1.md 2절 참조.
     user_emotion: Emotion = Emotion.NEUTRAL
     user_emotion_confidence: float | None = None
+    # user_emotion을 공통 감정값으로 바꾼 것. 앱·백엔드는 이 값을 씁니다.
+    # user_emotion(원래 라벨)은 고위험 2차 탐지와 오분류 수집용으로 남깁니다.
+    emotion: CommonEmotion = CommonEmotion.CALM
 
     # --- 운영 ---
     latency: LatencyBreakdown = Field(default_factory=LatencyBreakdown)
