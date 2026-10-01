@@ -54,7 +54,7 @@ def test_response_signals_are_calm():
     res = build_high_risk_response()
     assert res.led is Led.DIM_BLUE
     assert res.vibe is Vibe.NONE
-    assert res.oled_expression is OledExpression.SAD_EYES
+    assert res.oled_expression is OledExpression.SAD
     assert res.high_risk_detected is True
 
 

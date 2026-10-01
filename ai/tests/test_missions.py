@@ -57,7 +57,7 @@ def test_hw_signals_use_confirmed_enum():
 
 def test_success_signal_is_celebratory():
     assert SIGNAL_SUCCESS.led is Led.RAINBOW
-    assert SIGNAL_SUCCESS.oled is OledExpression.STAR_EYES
+    assert SIGNAL_SUCCESS.oled is OledExpression.HAPPY
 
 
 def test_timeout_signal_is_not_celebratory():

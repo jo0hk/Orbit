@@ -38,7 +38,7 @@ AI 서버의 판정 결과를 내부 값 `MissionResult` 로 표현합니다. �
 | 판정 | `MissionResult` | 백엔드 결과 API | 오빗 반응 | HW 신호 (`oled` · `led` · `vibe`) |
 | --- | --- | --- | --- | --- |
 | 성공 | `SUCCESS` | `success: true` → `COMPLETED`, stage +1 | 축하 | `EXPR_HAPPY` · `rainbow` · `strong_double` |
-| 조건 미달 | `RETRY` | `success: false` → `IN_PROGRESS` 유지 | 재시도 권유 | `EXPR_NORMAL` · (보내지 않음, 단계 색 유지) · `short_pulse` |
+| 조건 미달 | `RETRY` | `success: false` → `IN_PROGRESS` 유지 | 재시도 권유 | `EXPR_NORMAL` · `dim_blue` · `short_pulse` |
 | 거부 | `FAIL` (의미: **보류**) | **호출하지 않음** | 담담한 접수 | `EXPR_NORMAL` · `dim_blue` · `soft_continuous` |
 | 미션 무관 | `NONE` | — | — | 감정 매핑 (기존) |
 
@@ -273,12 +273,12 @@ def build_system_prompt(emotion: Emotion, ctx: EnvContext) -> str:
 
 MISSION_SIGNAL = {  # oled, led, vibe — 09-17 공통 제어값 중 HW 구현분
     MissionResult.SUCCESS: ("EXPR_HAPPY", "rainbow", "strong_double"),
-    MissionResult.RETRY: ("EXPR_NORMAL", None, "short_pulse"),
+    MissionResult.RETRY: ("EXPR_NORMAL", "dim_blue", "short_pulse"),
     MissionResult.FAIL: ("EXPR_NORMAL", "dim_blue", "soft_continuous"),
 }
 ```
 
-`Led` / `Vibe` / `OledExpression` enum(`ai/app/schemas.py`)에 `EXPR_HAPPY`, `EXPR_NORMAL`, `short_pulse` 와 "LED 보내지 않음"을 표현할 값이 아직 없습니다. 공통 제어 코드표에 맞춰 enum을 정리하는 작업이 선행되어야 합니다(6절 3번).
+`Led` / `Vibe` / `OledExpression` enum(`ai/app/schemas.py`)은 10-01에 위 값으로 정리했습니다. 이 매핑은 `ai/app/missions.py` 의 `SIGNAL_SUCCESS` / `SIGNAL_TIMEOUT` / `SIGNAL_DEFERRED` 로 이미 정의되어 있습니다. 조건 미달의 LED는 처음에 "보내지 않음"이었으나, 응답 필드에 LED가 반드시 들어가는 구조라 `dim_blue` 로 정했습니다. 보류와는 진동으로 구분됩니다.
 
 ---
 
@@ -288,7 +288,7 @@ MISSION_SIGNAL = {  # oled, led, vibe — 09-17 공통 제어값 중 HW 구현�
 | --- | --- | --- | --- |
 | 1 | Context API에 오늘 미션·날씨 범주 포함 | 백엔드 | 0절 1번 |
 | 2 | 앱 텍스트 교신 엔드포인트 | AI · 앱 | 0절 3번. 1단계 미션 선결 조건 |
-| 3 | AI 서버 enum을 09-17 공통 제어 코드표에 맞춰 정리 | AI · HW | 현재 `star_eyes`, `dim_white`, `calm_wave` 등 HW가 처리하지 않는 값이 남아 있음 |
+| 3 | AI 서버 enum을 09-17 공통 제어 코드표에 맞춰 정리 | AI · HW | 10-01 완료. HW의 `EXPR_HAPPY` 분기 추가는 남음 |
 | 4 | `MissionResult.FAIL` → `DEFERRED` 이름 변경 | AI | 1절 |
 | 5 | 사진형 미션 업로드 경로 | 앱 · AI | 2-2 |
 | 6 | 미션 반응 턴의 레이턴시 | AI | Context API 조회 1회와 블록(약 150~470자)이 추가됨. 재측정은 API 키가 있는 환경에서 |

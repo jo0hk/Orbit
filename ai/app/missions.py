@@ -58,9 +58,10 @@ class HwSignal:
     oled: OledExpression
 
 
-SIGNAL_SUCCESS = HwSignal(Led.RAINBOW, Vibe.STRONG_DOUBLE, OledExpression.STAR_EYES)
-SIGNAL_TIMEOUT = HwSignal(Led.DIM_BLUE, Vibe.SHORT, OledExpression.IDLE_EYES)
-SIGNAL_DEFERRED = HwSignal(Led.DIM_BLUE, Vibe.SOFT_CONTINUOUS, OledExpression.IDLE_EYES)
+# 09-17 공통 제어값 중 HW 구현분 (docs/mission-context-injection.md 1절)
+SIGNAL_SUCCESS = HwSignal(Led.RAINBOW, Vibe.STRONG_DOUBLE, OledExpression.HAPPY)
+SIGNAL_TIMEOUT = HwSignal(Led.DIM_BLUE, Vibe.SHORT_PULSE, OledExpression.NORMAL)
+SIGNAL_DEFERRED = HwSignal(Led.DIM_BLUE, Vibe.SOFT_CONTINUOUS, OledExpression.NORMAL)
 # 제안 시점에는 미션 전용 신호를 쓰지 않고 현재 감정 매핑을 따릅니다.
 
 

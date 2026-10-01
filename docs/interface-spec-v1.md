@@ -164,15 +164,16 @@ HW가 처리하지 않는 값을 보내면 **아무 반응이 없습니다.** AI
 | --- | --- | --- | --- |
 | 긍정/중립 | `EXPR_NORMAL` | `rainbow` | `strong_double` |
 | `sad` / `fear` / 조도 50 lux 이하 | `EXPR_SAD` | `dim_blue` | `soft_continuous` |
-| `anger` / `disgust` | `EXPR_NORMAL` | (보내지 않음) | `short_pulse` |
+| `anger` / `disgust` | `EXPR_NORMAL` | `dim_blue` | `short_pulse` |
 | 미션 성공 | `EXPR_HAPPY` | `rainbow` | `strong_double` |
-| 미션 조건 미달 | `EXPR_NORMAL` | (보내지 않음) | `short_pulse` |
+| 미션 조건 미달 | `EXPR_NORMAL` | `dim_blue` | `short_pulse` |
 | 미션 거부 (보류) | `EXPR_NORMAL` | `dim_blue` | `soft_continuous` |
 | 처리 중 | `EXPR_THINKING` | — | — |
 | 통신 장애 (비상 프로토콜) | `EXPR_SAD` | `dim_blue` | `short_pulse` |
-| 고위험 발화 | `EXPR_SAD` | `dim_blue` | (보내지 않음) |
+| 고위험 발화 | `EXPR_SAD` | `dim_blue` | `none` (HW가 무시 → 진동 없음) |
 
-- `anger` / `disgust` 는 v1에서 `dim_white` / `calm_wave` 였으나 HW에 없습니다. `calm_wave` 가 구현되면 되돌립니다.
+- `anger` / `disgust` 는 v1에서 `dim_white` / `calm_wave` 였으나 HW에 없습니다. `calm_wave` 가 구현되면 진동을 되돌립니다.
+- `anger` / `disgust` 와 미션 조건 미달의 LED는 처음에 "보내지 않음"으로 잡았으나 **`dim_blue` 로 정했습니다**(10-01). LED 값은 LLM이 고르거나 응답 필드에 반드시 들어가는 구조라 "없음"을 표현하려면 필드를 비울 수 있게 바꿔야 하는데, 그보다 단순한 쪽을 택했습니다. `sad` 와는 진동(`short_pulse`)으로 구분됩니다.
 - 통신 장애는 v1에서 `orange` 였으나 HW에 없습니다. 비상 응답은 키링 플래시에 저장해 두고 로컬 재생하기로 했으므로(09-17 안건 2 장애 대응), 이 값은 서버가 살아 있고 Gemini만 실패한 경우에만 쓰입니다.
 
 ### 정할 것
@@ -182,7 +183,7 @@ HW가 처리하지 않는 값을 보내면 **아무 반응이 없습니다.** AI
 
 ### v1 대비
 
-v1은 AI enum(`idle_eyes`, `star_eyes`, `dim_white`, `calm_wave`, `orange`)을 기준으로 채택하자고 제안했습니다. 회의에서 HW 구현 기준으로 정했으므로 바뀌었습니다. AI 서버 코드(`ai/app/schemas.py`, `ai/prompts/persona.md`)는 아직 v1 값이며, enum과 프롬프트를 함께 고쳐야 합니다(테스트가 둘의 일치를 검사함).
+v1은 AI enum(`idle_eyes`, `star_eyes`, `dim_white`, `calm_wave`, `orange`)을 기준으로 채택하자고 제안했습니다. 회의에서 HW 구현 기준으로 정했으므로 바뀌었습니다. AI 서버 코드(`ai/app/schemas.py` enum, `ai/prompts/persona.md` 매핑표, 비상·고위험·Vision 응답)도 10-01에 이 표 기준으로 바꿨습니다. `ai/tests/test_schemas.py` 가 프롬프트 매핑표의 값이 enum 안에 있는지 검사합니다.
 
 ---
 

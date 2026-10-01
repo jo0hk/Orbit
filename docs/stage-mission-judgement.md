@@ -181,7 +181,7 @@ HW 코드(`hw/Orbit/Orbit.ino` `applyHardwareAction`)가 실제로 처리하는 
 | 상황 | `oled` | `led` | `vibe` |
 | --- | --- | --- | --- |
 | 성공 | `EXPR_HAPPY` | `rainbow` | `strong_double` |
-| `success:false` (재시도) | `EXPR_NORMAL` | (단계 색 유지, 보내지 않음) | `short_pulse` |
+| `success:false` (재시도) | `EXPR_NORMAL` | `dim_blue` | `short_pulse` |
 | 거부 (보류) | `EXPR_NORMAL` | `dim_blue` | `soft_continuous` |
 | 판정 처리 중 (Vision 대기) | `EXPR_THINKING` | — | — |
 

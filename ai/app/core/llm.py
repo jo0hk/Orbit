@@ -21,9 +21,11 @@ logger = logging.getLogger(__name__)
 
 EMERGENCY_RESPONSE = InteractResponse(
     speech="치직- 통신 장애 발생. 태양풍 간섭으로 교신이 끊겼습니다. 오버.",
-    led=Led.ORANGE,
-    vibe=Vibe.SHORT,
-    oled_expression=OledExpression.SAD_EYES,
+    # 09-17 공통 제어값 중 HW 구현분. 1학기 orange는 HW에 없어 dim_blue로 바꿈.
+    # 네트워크가 완전히 끊긴 경우는 키링이 플래시에 저장한 비상 음성을 로컬 재생합니다.
+    led=Led.DIM_BLUE,
+    vibe=Vibe.SHORT_PULSE,
+    oled_expression=OledExpression.SAD,
     fallback_triggered=True,
 )
 

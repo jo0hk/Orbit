@@ -39,51 +39,54 @@ class Emotion(str, Enum):
 # 하드웨어 제어 신호
 # ─────────────────────────────────────────────────────────────
 class Led(str, Enum):
-    """WS2812B 네오픽셀 패턴. 값 출처: 1학기 ContextInjector 프롬프트."""
+    """WS2812B 네오픽셀 패턴.
 
-    RAINBOW = "rainbow"        # 긍정/중립, 환경 양호
-    DIM_BLUE = "dim_blue"      # sad / fear, 또는 조도 50 lux 이하
-    DIM_WHITE = "dim_white"    # anger / disgust
-    ORANGE = "orange"          # 통신 장애 폴백
+    09-17 공통 제어값 중 HW(`hw/Orbit/Orbit.ino` applyHardwareAction)가 실제로
+    처리하는 값만 둡니다. HW가 모르는 값을 보내면 아무 반응이 없습니다.
+    평상시 LED는 HW가 단계 테마색으로 유지합니다 (docs/interface-spec-v1.md 3절).
+    """
+
+    RAINBOW = "rainbow"        # 긍정/중립, 미션 성공
+    DIM_BLUE = "dim_blue"      # sad / fear / anger / disgust, 조도 50 lux 이하, 비상·고위험
 
 
 class Vibe(str, Enum):
-    """PP-A811 진동 모터 패턴. 값 출처: 1학기 ContextInjector 프롬프트."""
+    """PP-A811 진동 모터 패턴. 09-17 공통 진동값 중 HW 구현분."""
 
-    STRONG_DOUBLE = "strong_double"    # 긍정/중립
-    SOFT_CONTINUOUS = "soft_continuous"  # sad / fear
-    CALM_WAVE = "calm_wave"            # anger / disgust
-    SHORT = "short"                    # 통신 장애 폴백
-    NONE = "none"                      # 서버 전용. LLM은 선택하지 않음 (고위험 발화 대응)
+    STRONG_DOUBLE = "strong_double"      # 긍정/중립, 미션 성공
+    SOFT_CONTINUOUS = "soft_continuous"  # sad / fear, 미션 보류
+    SHORT_PULSE = "short_pulse"          # anger / disgust, 미션 조건 미달, 비상
+    NONE = "none"                        # 서버 전용. LLM은 선택하지 않음 (고위험 발화 대응)
+    # calm_wave, two_short_taps 는 공통값에 있으나 HW 미구현. 구현되면 추가합니다.
 
 
 class OledExpression(str, Enum):
-    """OLED 픽셀 표정.
+    """OLED 픽셀 표정. 09-17 공통 제어값(EXPR_*) 중 AI 서버가 쓰는 것.
 
-    ⚠️ 1학기 노트북에는 구현되어 있지 않습니다. LLM은 speech/led/vibe
-       3종만 반환합니다. 아래 값은 페르소나 설정안(1주차 노션)에 적힌
-       묘사를 코드로 옮긴 제안이며, HW 파트와 미합의 상태입니다.
+    LLM은 반환하지 않고 서버가 감정·상황에서 파생합니다.
+    ⚠️ EXPR_HAPPY 는 HW applyHardwareAction 에 분기가 아직 없습니다 (HW 작업).
     """
 
-    IDLE_EYES = "idle_eyes"    # 평상시 동그란 픽셀 눈
-    STAR_EYES = "star_eyes"    # 기쁠 때 반짝이는 별 모양
-    SAD_EYES = "sad_eyes"
-    WIDE_EYES = "wide_eyes"
+    NORMAL = "EXPR_NORMAL"        # 평상시
+    HAPPY = "EXPR_HAPPY"          # 미션 성공, Vision 칭찬
+    SAD = "EXPR_SAD"              # sad / fear, 비상·고위험
+    LISTENING = "EXPR_LISTENING"  # 다시 말해 달라고 할 때 (무응답, STT 실패)
+    THINKING = "EXPR_THINKING"    # 처리 중
 
 
 def oled_for(emotion: Emotion) -> OledExpression:
-    """감정 → 표정 매핑.
+    """감정 → 표정 매핑. 서버에서 감정으로 파생합니다.
 
-    TODO(1주차): HW 파트와 합의 후 확정하세요. LLM이 직접 반환하게 할지,
-    서버에서 감정으로 파생할지도 결정 대상입니다. 현재는 파생 방식입니다.
+    anger / disgust 는 표정을 바꾸지 않습니다. 적대 발화에 오빗이 흔들리지
+    않는다는 예외 대화 3번 원칙과 같습니다.
     """
     return {
-        Emotion.SAD: OledExpression.SAD_EYES,
-        Emotion.FEAR: OledExpression.WIDE_EYES,
-        Emotion.ANGER: OledExpression.WIDE_EYES,
-        Emotion.DISGUST: OledExpression.WIDE_EYES,
-        Emotion.NEUTRAL: OledExpression.IDLE_EYES,
-    }.get(emotion, OledExpression.IDLE_EYES)
+        Emotion.SAD: OledExpression.SAD,
+        Emotion.FEAR: OledExpression.SAD,
+        Emotion.ANGER: OledExpression.NORMAL,
+        Emotion.DISGUST: OledExpression.NORMAL,
+        Emotion.NEUTRAL: OledExpression.NORMAL,
+    }.get(emotion, OledExpression.NORMAL)
 
 
 class CommonEmotion(str, Enum):
@@ -155,7 +158,7 @@ class InteractResponse(BaseModel):
     speech: str
     led: Led
     vibe: Vibe
-    oled_expression: OledExpression = OledExpression.IDLE_EYES
+    oled_expression: OledExpression = OledExpression.NORMAL
 
     audio_url: str | None = Field(None, description="무전 톤 합성이 끝난 음성 파일 경로")
 

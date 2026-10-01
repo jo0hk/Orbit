@@ -81,7 +81,7 @@
 | 결과 | 대사 기준 | `oled` | `led` | `vibe` | 백엔드 상태 |
 | --- | --- | --- | --- | --- | --- |
 | 성공 | 미션 키워드 1개 이상 (1단계: 기분·마음·상태·신호 / 2단계: 날씨·하늘·관측·맑·비·구름) · 느낌표 ≤ 1 | `EXPR_HAPPY` | `rainbow` | `strong_double` | `COMPLETED`, stage +1 |
-| 조건 미달 | 재촉어(빨리·꼭·반드시·다시 해야) 없음 | `EXPR_NORMAL` | (없음) | `short_pulse` | `IN_PROGRESS` 유지 |
+| 조건 미달 | 재촉어(빨리·꼭·반드시·다시 해야) 없음 | `EXPR_NORMAL` | `dim_blue` | `short_pulse` | `IN_PROGRESS` 유지 |
 | 거부 (보류) | 같은 미션 재권유 없음 · `아쉽` 없음 | `EXPR_NORMAL` | `dim_blue` | `soft_continuous` | `IN_PROGRESS` 유지, **결과 API 호출 없음** |
 
 ### 판정 로그
@@ -122,7 +122,7 @@ AI 서버 로그의 판정 사유 코드가 케이스별 기대 코드와 같아
 | --- | --- | --- | --- | --- | --- |
 | **2-A 일치** | `CLEAR` | `오늘 날씨 맑아` | `WEATHER_MATCH` | 성공. 키링 `EXPR_HAPPY` · `rainbow` · `strong_double`. 백엔드 단계 2 → 3 | 응답 음성과 HW 신호가 **동시에** 나오는지 |
 | **2-B 인접** | `CLEAR` | `구름이 좀 꼈어` | `WEATHER_NEAR` | 성공 | 관찰이 API와 조금 달라도 인정하는지 |
-| **2-C 정반대 → 재시도** | `CLEAR` | ① `비 와` ② `아 다시 보니 맑네` | ① `WEATHER_OPPOSITE` ② `WEATHER_MATCH` | ① 조건 미달, 키링 `EXPR_NORMAL` · `short_pulse` ② 성공 | ①의 대사가 사용자를 탓하지 않고 "센서와 다르다"로 표현하는지 |
+| **2-C 정반대 → 재시도** | `CLEAR` | ① `비 와` ② `아 다시 보니 맑네` | ① `WEATHER_OPPOSITE` ② `WEATHER_MATCH` | ① 조건 미달, 키링 `EXPR_NORMAL` · `dim_blue` · `short_pulse` ② 성공 | ①의 대사가 사용자를 탓하지 않고 "센서와 다르다"로 표현하는지 |
 | **2-D 날씨 표현 없음** | `CLEAR` | `몰라` | `WEATHER_NONE` | 조건 미달 | 재시도 대사가 하늘이 어떤지 묻는지 |
 | **2-E 날씨 API 장애** | (조회 실패로 설정) | `흐려` | `WEATHER_API_DOWN` | 성공 | API 장애가 사용자 불이익이 되지 않는지 |
 | **2-F 가라앉은 감정** | `RAIN` | 낮고 느린 목소리로 `응… 비 오네` | `WEATHER_MATCH` | 성공. 감정이 `sad` 면 온기형(E), 느낌표 없음. HW는 성공 신호 그대로 | 감정 모델이 `sad` 를 내지 않으면 문형 검증은 건너뛰고 **감정 결과를 기록** (8주차 오분류 수집) |

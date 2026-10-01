@@ -58,7 +58,7 @@
 | A | `치직- 적대 신호 감지. 제 분석에 오류가 있었나 봅니다. 오버` |
 | B | `치직- 대장님 심기 불편 확인. 교신 방식을 재조정하겠습니다. 라저` |
 
-`led` (보내지 않음) · `vibe` `short_pulse` · `oled` `EXPR_NORMAL`
+`led` `dim_blue` · `vibe` `short_pulse` · `oled` `EXPR_NORMAL`
 
 > 개정 전 값 `dim_white` / `calm_wave` / `wide_eyes` 는 HW에 없습니다. HW가 `calm_wave` 를 구현하면 진동만 되돌립니다.
 
