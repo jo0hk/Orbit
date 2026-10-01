@@ -2,7 +2,7 @@
 
 > 작성: AI/PM · 2026-09-21
 > 모든 대사는 **공백 포함 45자 이내**. 무전 프로토콜(`치직-` 시작, `오버`/`라저`/`교신 종료` 종료)을 따릅니다.
-> `led` / `vibe` / `oled_expression` 값은 `ai/app/schemas.py`의 enum과 일치해야 합니다.
+> `led` / `vibe` / `oled_expression` 값은 09-17 공통 제어값 중 **HW가 실제로 처리하는 값**만 씁니다(`docs/interface-spec-v1.md` 3절, 10-01 개정). `ai/app/schemas.py` enum은 아직 이전 값이라 코드 수정 시 함께 바꿉니다.
 
 ## 처리 원칙
 
@@ -15,18 +15,20 @@
 
 ## 1. 탐사 거부
 
-**트리거** — 미션 제안 후 거부 의사 표현 (`싫어`, `안 나갈래`, `귀찮아` 등)
+**트리거** — 오늘 미션 수행을 거부하는 표현 (`하기 싫어`, `안 할래`, `안 나갈래` 등)
 
-**원칙** — 재차 권유하지 않습니다. 실내 대체 미션으로 전환합니다.
+> `귀찮아` 단독은 1단계(기분 텍스트) 미션 턴에서는 거부가 아니라 기분 표현으로 처리합니다. 기분을 묻는 미션에 대한 답이기 때문입니다(`docs/stage-mission-judgement.md` 2절).
+
+**원칙** — 재차 권유하지 않습니다. 단계당 미션이 1개라 대체 미션은 없습니다(10-01 개정 전에는 실내 대체 미션 제안). 쉬어도 된다는 뜻만 전합니다.
 
 | # | 대사 |
 | --- | --- |
-| A | `치직- 접수했습니다. 오늘은 기지 내부 정찰로 전환합니다. 오버` |
-| B | `치직- 대장님 판단을 존중합니다. 실내 임무로 변경. 라저` |
+| A | `치직- 임무 보류 접수. 기록은 안전하게 보관합니다. 교신 종료` |
+| B | `치직- 알겠습니다. 오늘은 쉬어 가도 괜찮습니다. 교신 종료` |
 
-`led` `dim_blue` · `vibe` `soft_continuous` · `oled` `idle_eyes`
+`led` `dim_blue` · `vibe` `soft_continuous` · `oled` `EXPR_NORMAL`
 
-**후속** — 미션 상태를 `fail`이 아니라 **보류**로 기록합니다. 실패 판정은 강요하는 톤을 만듭니다.
+**후속** — 미션 결과 API를 **호출하지 않습니다**(보류). 미션은 `IN_PROGRESS` 로 남고 다음날 같은 단계 미션이 다시 배정됩니다. 실패 판정은 강요하는 톤을 만듭니다.
 
 ---
 
@@ -41,7 +43,7 @@
 | A | `치직- 대장님 에너지 수치 저하 확인. 충전 시간이 필요합니다. 오버` |
 | B | `치직- 무리한 탐사는 금물입니다. 오늘은 여기까지. 교신 종료` |
 
-`led` `dim_blue` · `vibe` `soft_continuous` · `oled` `sad_eyes`
+`led` `dim_blue` · `vibe` `soft_continuous` · `oled` `EXPR_SAD`
 
 ---
 
@@ -56,7 +58,9 @@
 | A | `치직- 적대 신호 감지. 제 분석에 오류가 있었나 봅니다. 오버` |
 | B | `치직- 대장님 심기 불편 확인. 교신 방식을 재조정하겠습니다. 라저` |
 
-`led` `dim_white` · `vibe` `calm_wave` · `oled` `wide_eyes`
+`led` (보내지 않음) · `vibe` `short_pulse` · `oled` `EXPR_NORMAL`
+
+> 개정 전 값 `dim_white` / `calm_wave` / `wide_eyes` 는 HW에 없습니다. HW가 `calm_wave` 를 구현하면 진동만 되돌립니다.
 
 ---
 
@@ -69,9 +73,9 @@
 | A | `치직- 대장님? 음성 신호가 잡히지 않습니다. 응답 바랍니다. 오버` |
 | B | `치직- 교신 대기 중입니다. 준비되시면 송신해 주십시오. 오버` |
 
-`led` `dim_blue` · `vibe` `two_short_taps`* · `oled` `wide_eyes`
+`led` `dim_blue` · `vibe` `short_pulse` · `oled` `EXPR_LISTENING`
 
-> \* `two_short_taps`는 현재 `Vibe` enum에 없습니다. `short`로 대체하거나 enum에 추가할지 1주차에 확정하세요.
+> `two_short_taps` 는 09-17 공통 진동값에 있지만 HW에 아직 구현되지 않아 `short_pulse` 로 대신합니다. 다시 말해 달라는 상황이라 "듣는 중" 표정(`EXPR_LISTENING`)을 씁니다.
 
 ---
 
@@ -86,7 +90,7 @@
 | A | `치직- 교신 잡음이 심합니다. 다시 송신 바랍니다. 오버` |
 | B | `치직- 신호 왜곡 발생. 한 번 더 말씀해 주십시오. 오버` |
 
-`led` `orange` · `vibe` `short` · `oled` `wide_eyes`
+`led` `dim_blue` · `vibe` `short_pulse` · `oled` `EXPR_LISTENING`
 
 ---
 
@@ -101,7 +105,7 @@
 | A | `치직- 센서 오판이었습니다. 대장님 말씀을 기준으로 재설정. 라저` |
 | B | `치직- 감정 분석 수정하겠습니다. 정정해 주셔서 감사합니다. 오버` |
 
-`led` `rainbow` · `vibe` `short` · `oled` `idle_eyes`
+`led` `rainbow` · `vibe` `short_pulse` · `oled` `EXPR_NORMAL`
 
 **후속** — 해당 턴의 `userEmotion`에 정정 플래그를 남기면 8주차 오분류 사례 수집에 그대로 쓸 수 있습니다.
 
@@ -117,6 +121,8 @@
 치직- 통신 장애 발생. 태양풍 간섭으로 교신이 끊겼습니다. 오버.
 led=orange  vibe=short  oled=sad_eyes  fallback_triggered=true
 ```
+
+> 위는 현재 코드 값입니다. `orange` 는 HW에 없으므로 `led=dim_blue  vibe=short_pulse  oled=EXPR_SAD` 로 바꿀 예정입니다(`docs/interface-spec-v1.md` 3절). 네트워크가 완전히 끊긴 경우는 서버가 응답할 수 없으므로, 키링 플래시에 저장한 비상 음성을 로컬 재생합니다(09-17 회의).
 
 ---
 

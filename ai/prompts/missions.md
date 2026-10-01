@@ -1,5 +1,7 @@
 # 미션 대사 세트 (2학기 4주차)
 
+> **10-01 대체됨.** 이 문서의 센서 미션 5개는 2026-09-17 회의에서 확정한 미션 구조(단계당 1개: 기분 텍스트 · 날씨 음성 보고 · 랜드마크 사진 · 대중교통, AI 서버 판정)와 다릅니다. 현행 기준은 `docs/stage-mission-judgement.md` 입니다. 이 문서는 확장 후보와 기록으로만 남깁니다. 미션별 성공·재시도 반응은 `docs/mission-context-injection.md` 4절의 문형을 따릅니다. 코드(`ai/app/missions.py`)는 판정 로직 구현 때 교체합니다.
+
 > 작성: AI/PM · 2026-09-21 (원본 대조 후 개정)
 > 원본: `docs/reference/mission-list-1st-semester.md` · 판정 조건: `docs/mission-spec.md`
 > 코드 정의: `ai/app/missions.py` (이 문서는 코드에서 생성됨. 수정은 코드에서)
