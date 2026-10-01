@@ -40,13 +40,14 @@ public class MqttConfig {
 
     @Bean
     public MessageProducer inbound(MqttPahoClientFactory clientFactory) {
+
         String clientId = "spring-client-" + UUID.randomUUID();
 
         MqttPahoMessageDrivenChannelAdapter adapter =
                 new MqttPahoMessageDrivenChannelAdapter(
                         clientId,
                         clientFactory,
-                        "orbit/status"
+                        "orbit/+/status"
                 );
 
         adapter.setCompletionTimeout(5000);
