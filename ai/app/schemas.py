@@ -86,6 +86,20 @@ def oled_for(emotion: Emotion) -> OledExpression:
     }.get(emotion, OledExpression.IDLE_EYES)
 
 
+class CommonEmotion(str, Enum):
+    """09-17 회의에서 확정한 공통 감정값. 백엔드·앱이 쓰는 값입니다.
+
+    감정 모델 출력(Emotion)을 이 값으로 바꾸는 규칙은
+    app/core/emotion_map.py 와 docs/interface-spec-v1.md 2절에 있습니다.
+    백엔드 Emotion enum이 이 4개만 받으므로 대화 저장에는 반드시 이 값을 씁니다.
+    """
+
+    HAPPY = "happy"
+    SAD = "sad"
+    ANGRY = "angry"
+    CALM = "calm"
+
+
 class MissionResult(str, Enum):
     """5주차: 미션 판정 결과. Context Injector에 주입됩니다."""
 
@@ -153,6 +167,9 @@ class InteractResponse(BaseModel):
     # 매핑 규칙은 docs/interface-spec-v1.md 2절 참조.
     user_emotion: Emotion = Emotion.NEUTRAL
     user_emotion_confidence: float | None = None
+    # user_emotion을 공통 감정값으로 바꾼 것. 앱·백엔드는 이 값을 씁니다.
+    # user_emotion(원래 라벨)은 고위험 2차 탐지와 오분류 수집용으로 남깁니다.
+    emotion: CommonEmotion = CommonEmotion.CALM
 
     # --- 운영 ---
     latency: LatencyBreakdown = Field(default_factory=LatencyBreakdown)

@@ -19,6 +19,7 @@ from contextlib import contextmanager
 
 from app.core.context import build_system_prompt
 from app.core.emotion import EmotionEngine
+from app.core.emotion_map import to_common_emotion
 from app.core.llm import EMERGENCY_RESPONSE, OrbitLLM
 from app.core.safety import build_high_risk_response, detect_high_risk
 from app.core.stt import SpeechToText
@@ -100,13 +101,16 @@ class OrbitCore:
         result.stt_confidence = stt_conf
         result.user_emotion = emotion
         result.user_emotion_confidence = emo_conf
+        # 앱·백엔드용 공통 감정값. 대화 저장 시 이 값을 씁니다 (docs/interface-spec-v1.md 2절)
+        result.emotion = to_common_emotion(emotion, user_text)
         result.latency = LatencyBreakdown(
             **marks,
             total_ms=int((time.perf_counter() - total_start) * 1000),
         )
 
         logger.info(
-            "interact 완료: emotion=%s conf=%.2f high_risk=%s latency=%s",
-            emotion.value, emo_conf or 0.0, high_risk, result.latency.model_dump(),
+            "interact 완료: emotion=%s(%s) conf=%.2f high_risk=%s latency=%s",
+            emotion.value, result.emotion.value, emo_conf or 0.0, high_risk,
+            result.latency.model_dump(),
         )
         return result

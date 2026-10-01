@@ -60,7 +60,7 @@ public class ConversationRequest {
 | `userId` | Context API로 `device_id` → `userId` 변환 (음성) / 요청값 (텍스트) | 동일 |
 | `speaker` | `USER` | `ORBIT` |
 | `message` | STT 결과 또는 입력 텍스트 | `speech` |
-| `emotion` | AI 모델 출력을 공통값으로 변환 (`interface-spec-v1.md` 2절: sad·fear→`sad`, anger·disgust→`angry`, neutral→`calm`) | 비움 |
+| `emotion` | AI 모델 출력을 공통값으로 변환 (`interface-spec-v1.md` 2절: sad·fear→`sad`, anger·disgust→`angry`, neutral→`calm`, neutral+긍정 표현→`happy`). 응답 JSON의 `emotion` 값을 그대로 씀 | 비움 |
 | `stage` | Context API의 현재 단계 | 동일 |
 | `channel` | `VOICE` (키링) / `TEXT` (앱) | 동일 |
 | `requestId` | 요청 하나에 하나 발급. 두 행이 같은 값을 쓰면 백엔드가 중복으로 볼 수 있으므로 `{requestId}-U` / `{requestId}-O` 처럼 구분 | 〃 |
@@ -92,7 +92,7 @@ public class ConversationRequest {
 | 활용 정보 | 산출 방법 | 쓰이는 곳 |
 | --- | --- | --- |
 | 최근 대화 | `recent?limit=10` (Context API에 포함) | 문맥 유지 |
-| 주간 부정 감정 비율 | `emotion` 집계 (`sad`, `angry`) | 톤 조절. 다만 사용자 발화에 `happy`가 붙지 않으므로 긍정 비율은 알 수 없음 |
+| 주간 부정 감정 비율 | `emotion` 집계 (`sad`, `angry`) | 톤 조절. `happy`는 키워드 기반 긍정 보정이라 실제보다 적게 잡힐 수 있음 |
 | 누적 교신 수 | `COUNT(*)` | 9주차 성장 레벨 |
 | 완료 미션 수 | `user_missions` `COMPLETED` 집계 | 9주차 성장 레벨 |
 | 최근 사용 문형 | 최근 ORBIT 발화 | 9주차 반복 칭찬 방지 |
