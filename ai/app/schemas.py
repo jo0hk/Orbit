@@ -108,12 +108,30 @@ class CommonEmotion(str, Enum):
 
 
 class MissionResult(str, Enum):
-    """5주차: 미션 판정 결과. Context Injector에 주입됩니다."""
+    """AI 서버의 미션 판정 결과. Context Injector에 주입됩니다.
 
-    SUCCESS = "success"
-    FAIL = "fail"
-    RETRY = "retry"
-    NONE = "none"
+    FAILED(실패)는 두지 않습니다. 조건 미달은 RETRY(같은 날 다시 할 수 있음),
+    거부는 DEFERRED(보류, 결과 API를 호출하지 않음)입니다.
+    docs/mission-context-injection.md 1절, docs/stage-mission-judgement.md 3절
+    """
+
+    SUCCESS = "success"    # 백엔드 결과 API success:true
+    RETRY = "retry"        # 백엔드 결과 API success:false
+    DEFERRED = "deferred"  # 거부. 결과 API 호출 안 함
+    NONE = "none"          # 미션과 무관한 턴
+
+
+class WeatherCategory(str, Enum):
+    """2단계 미션 판정용 날씨 범주. 백엔드 Context API가 이 값으로 줍니다 (요청 사항).
+
+    docs/stage-mission-judgement.md 2절
+    """
+
+    CLEAR = "CLEAR"    # 맑음
+    CLOUDS = "CLOUDS"  # 흐림
+    RAIN = "RAIN"      # 비
+    SNOW = "SNOW"      # 눈
+    MIST = "MIST"      # 안개
 
 
 # ─────────────────────────────────────────────────────────────

@@ -36,7 +36,7 @@
 | --- | --- | --- | --- |
 | P1 | 백엔드 Context API — 오늘 미션 `{missionId, stage, missionType, status}` 와 날씨 범주 포함 | 백엔드 | Postman으로 테스트 사용자 조회 |
 | P2 | 백엔드 결과 API `POST /api/missions/{missionId}/result` | 백엔드 | 구현 완료 (5주차). `confidence` / `reason` 필드는 선택 |
-| P3 | AI 서버 1·2단계 규칙 판정 + 결과 API 호출 | AI | 단위 테스트 통과 |
+| P3 | AI 서버 1·2단계 규칙 판정 + 결과 API 호출 | AI | 판정 함수는 구현 완료(`ai/app/core/mission_judge.py`, 10-01). 파이프라인 연결과 결과 API 호출은 미구현 |
 | P4 | AI 서버 앱 텍스트 교신 엔드포인트 | AI | 1단계용. 현재는 음성 엔드포인트만 있음 |
 | P5 | 테스트 사용자 2명 — **사용자 A: 1단계**, **사용자 B: 2단계**, 각자 캐릭터·기기 매핑 | 백엔드 | 아래 참조 |
 | P6 | 날씨 고정 수단 — 테스트 중 Context API가 지정한 날씨 범주를 반환 | 백엔드 | 실제 날씨에 따라 결과가 바뀌면 재현 불가 |

@@ -39,11 +39,11 @@ AI 서버의 판정 결과를 내부 값 `MissionResult` 로 표현합니다. �
 | --- | --- | --- | --- | --- |
 | 성공 | `SUCCESS` | `success: true` → `COMPLETED`, stage +1 | 축하 | `EXPR_HAPPY` · `rainbow` · `strong_double` |
 | 조건 미달 | `RETRY` | `success: false` → `IN_PROGRESS` 유지 | 재시도 권유 | `EXPR_NORMAL` · `blue` · `short_pulse` |
-| 거부 | `FAIL` (의미: **보류**) | **호출하지 않음** | 담담한 접수 | `EXPR_NORMAL` · `blue` · `soft_continuous` |
+| 거부 | `DEFERRED` (의미: **보류**) | **호출하지 않음** | 담담한 접수 | `EXPR_NORMAL` · `blue` · `soft_continuous` |
 | 미션 무관 | `NONE` | — | — | 감정 매핑 (기존) |
 
 - **"실패"는 없습니다.** `success: false` 는 "아직"이며 백엔드도 상태를 `IN_PROGRESS` 로 유지해 같은 날 다시 할 수 있습니다. 프롬프트에 "실패"라는 단어를 넣지 않습니다.
-- `FAIL` 이라는 이름은 이 원칙과 어긋나므로 코드 수정 시 `DEFERRED` 로 바꿀 것을 제안합니다. AI 서버 내부 값이라 백엔드와 합의할 필요는 없습니다.
+- 초안의 `FAIL` 이라는 이름은 이 원칙과 어긋나 10-01에 `DEFERRED` 로 바꿨습니다(`ai/app/schemas.py`). AI 서버 내부 값이라 백엔드와 합의할 필요는 없습니다.
 
 ---
 
@@ -59,7 +59,7 @@ AI 서버의 판정 결과를 내부 값 `MissionResult` 로 표현합니다. �
    2. 고위험 발화 탐지 ──▶ 해당 시 고정 응답, 미션 판정 안 함
    3. Context API 조회 ──▶ 오늘 미션, 상태, 날씨, 최근 대화
    4. 판정 대상인가?  오늘 미션 IN_PROGRESS + 채널 일치 (1단계=TEXT, 2단계=VOICE)
-   5. 거부 표현인가?  ──▶ FAIL(보류)
+   5. 거부 표현인가?  ──▶ DEFERRED(보류)
       아니면 규칙 판정 ──▶ SUCCESS / RETRY   (stage-mission-judgement.md 2절)
    6. 감정 분석 → 프롬프트 조립 (미션 반응 블록 포함) → LLM
    7. HW 신호 덮어쓰기 (1절) → TTS → 응답
@@ -92,9 +92,9 @@ persona.md
 [미션 반응 수칙]                       ← 추가 (결과별 블록 하나)
 ```
 
-환경 정보 목록에 **한 줄만** 넣고, 행동 지침은 별도 블록으로 분리합니다. 1학기에 프롬프트가 비대해져 503을 맞은 이력이 있으므로 **블록당 공백 포함 450자 이내**(치환값 포함, 조건부 문장 제외)로 제한합니다. 아래 템플릿 원문은 `SUCCESS` 약 330자 · `RETRY` 약 230자 · `FAIL` 약 150자이고, 참고 대사 2개를 치환하면 `SUCCESS` 가 약 400자입니다. 조건부 문장(3-3)이 붙는 최악의 경우 약 470자입니다.
+환경 정보 목록에 **한 줄만** 넣고, 행동 지침은 별도 블록으로 분리합니다. 1학기에 프롬프트가 비대해져 503을 맞은 이력이 있으므로 **블록당 공백 포함 450자 이내**(치환값 포함, 조건부 문장 제외)로 제한합니다. 아래 템플릿 원문은 `SUCCESS` 약 330자 · `RETRY` 약 230자 · `DEFERRED` 약 150자이고, 참고 대사 2개를 치환하면 `SUCCESS` 가 약 400자입니다. 조건부 문장(3-3)이 붙는 최악의 경우 약 470자입니다.
 
-`{result_label}` 표기: `SUCCESS` → `성공`, `RETRY` → `조건 미달(재시도 가능)`, `FAIL` → `보류`
+`{result_label}` 표기: `SUCCESS` → `성공`, `RETRY` → `조건 미달(재시도 가능)`, `DEFERRED` → `보류`
 
 ### 3-2. 결과별 블록
 
@@ -125,7 +125,7 @@ persona.md
 4. 참고 대사(복사 금지): "{retry_a}" / "{retry_b}"
 ```
 
-#### `FAIL` (보류)
+#### `DEFERRED` (보류)
 
 ```
 [미션 반응 수칙 — 임무 보류]
@@ -223,8 +223,8 @@ E형은 느낌표를 쓰지 않습니다. 스케일 단어를 쓴다면 하나�
 | `RETRY` (1단계) | 부족한 것 + 선택권 | `치직- 신호가 짧습니다. 지금 기분을 한 단어로 보내 주십시오. 오버` | 38 |
 | `RETRY` (2단계, 정반대) | 〃 | `치직- 기상 센서와 다릅니다. 창밖을 한 번 더 봐 주시겠습니까. 오버` | 39 |
 | `RETRY` (2단계, 표현 없음) | 〃 | `치직- 날씨 정보가 안 잡힙니다. 하늘이 어떤지 알려 주십시오. 오버` | 38 |
-| `FAIL` (보류) | 담담한 접수 + 기록 | `치직- 임무 보류 접수. 기록은 안전하게 보관합니다. 교신 종료` | 35 |
-| `FAIL` (보류) | 쉬어도 된다는 허락 | `치직- 알겠습니다. 오늘은 쉬어 가도 괜찮습니다. 교신 종료` | 33 |
+| `DEFERRED` (보류) | 담담한 접수 + 기록 | `치직- 임무 보류 접수. 기록은 안전하게 보관합니다. 교신 종료` | 35 |
+| `DEFERRED` (보류) | 쉬어도 된다는 허락 | `치직- 알겠습니다. 오늘은 쉬어 가도 괜찮습니다. 교신 종료` | 33 |
 
 ### 4-5. 금지어
 
@@ -232,7 +232,7 @@ E형은 느낌표를 쓰지 않습니다. 스케일 단어를 쓴다면 하나�
 | --- | --- | --- |
 | 전체 | `실패` | 상태 이름에도 쓰지 않음 |
 | `RETRY` | `빨리`, `꼭`, `반드시`, `다시 해야`, `왜` | 재촉·추궁 |
-| `FAIL` | `아쉽`, `다음엔 꼭`, 같은 미션 재언급 | 재권유 |
+| `DEFERRED` | `아쉽`, `다음엔 꼭`, 같은 미션 재언급 | 재권유 |
 | `SUCCESS` + `sad`/`fear` | 느낌표 2개 이상, `최고`, `대박` | 감정 온도차 |
 
 금지어는 6주차 회귀 테스트에서 자동 검사 항목으로 씁니다.
@@ -247,7 +247,7 @@ E형은 느낌표를 쓰지 않습니다. 스케일 단어를 쓴다면 하나�
 RESULT_LABEL = {
     MissionResult.SUCCESS: "성공",
     MissionResult.RETRY: "조건 미달(재시도 가능)",
-    MissionResult.FAIL: "보류",
+    MissionResult.DEFERRED: "보류",
 }
 
 
@@ -274,7 +274,7 @@ def build_system_prompt(emotion: Emotion, ctx: EnvContext) -> str:
 MISSION_SIGNAL = {  # oled, led, vibe — 09-17 공통 제어값 중 HW 구현분
     MissionResult.SUCCESS: ("EXPR_HAPPY", "rainbow", "strong_double"),
     MissionResult.RETRY: ("EXPR_NORMAL", "blue", "short_pulse"),
-    MissionResult.FAIL: ("EXPR_NORMAL", "blue", "soft_continuous"),
+    MissionResult.DEFERRED: ("EXPR_NORMAL", "blue", "soft_continuous"),
 }
 ```
 
@@ -289,6 +289,6 @@ MISSION_SIGNAL = {  # oled, led, vibe — 09-17 공통 제어값 중 HW 구현�
 | 1 | Context API에 오늘 미션·날씨 범주 포함 | 백엔드 | 0절 1번 |
 | 2 | 앱 텍스트 교신 엔드포인트 | AI · 앱 | 0절 3번. 1단계 미션 선결 조건 |
 | 3 | AI 서버 enum을 09-17 공통 제어 코드표에 맞춰 정리 | AI · HW | 10-01 완료. HW의 `EXPR_HAPPY` 분기 추가는 남음 |
-| 4 | `MissionResult.FAIL` → `DEFERRED` 이름 변경 | AI | 1절 |
+| 4 | `MissionResult.FAIL` → `DEFERRED` 이름 변경 | AI | 10-01 완료 |
 | 5 | 사진형 미션 업로드 경로 | 앱 · AI | 2-2 |
 | 6 | 미션 반응 턴의 레이턴시 | AI | Context API 조회 1회와 블록(약 150~470자)이 추가됨. 재측정은 API 키가 있는 환경에서 |
