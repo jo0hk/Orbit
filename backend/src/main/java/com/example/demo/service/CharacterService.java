@@ -33,17 +33,7 @@ public class CharacterService {
         status.addIntimacy(amount);
     }
 
-    @Transactional
-    public void increaseStage(Long charId) {
-        CharacterStatus character = characterRepository.findById(charId)
-                .orElseThrow(() ->
-                        new RuntimeException("캐릭터를 찾을 수 없습니다.")
-                );
 
-        character.setCurrentStage(character.getCurrentStage() + 1);
-
-        characterRepository.save(character);
-    }
 
     @Transactional
     public void updateEmotionStatus(Long charId, String emotionStatus) {
