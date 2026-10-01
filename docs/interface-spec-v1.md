@@ -14,7 +14,7 @@
 | --- | --- | --- | --- |
 | 1 | AI 서버 호출 경로 | 음성은 **키링 → AI 서버 직접**. AI 서버가 백엔드에서 맥락을 조회하고 대화 저장을 요청. 백엔드 → AI 호출은 산책(`/api/ai/walk`)만 | 확정. AI 서버 구현 필요 |
 | 2 | 감정 값 | 공통 감정값 `happy` / `sad` / `angry` / `calm` | 확정. 백엔드 적용 완료. **AI 모델 출력 변환 규칙**은 2절 (이번 개정에서 제안) |
-| 3 | HW 제어값 | OLED `EXPR_*`, 진동 이름 5종, LED 색 영어명. **HW가 실제로 구현한 값 기준** | 확정. AI 서버 enum 정리 필요 |
+| 3 | HW 제어값 | OLED `EXPR_*`, 진동 이름 5종, LED 색 영어명. **HW가 실제로 구현한 값 기준** | 확정. AI 서버 enum 정리 완료(10-01). LED 공통 제어값 10-01 확정. HW에 `EXPR_HAPPY`·`blue` 분기 필요 |
 | 4 | MQTT | 토픽 `orbit/{deviceId}/status`, 사용자·캐릭터·키링 1:1:1 | 확정. 백엔드 구현 완료. 센서값 JSON 형식은 HW·백엔드 협의 중 |
 | 5 | `userId` 타입 | — | 대화·미션은 `Long`, 미션 결과 요청 DTO는 `Integer`. 혼용 남아 있음 |
 
@@ -80,7 +80,7 @@ POST /api/v1/interact/text         (application/json)
 {
   "speech": "치직- 대장님, 오늘 컨디션은 어떠십니까. 오버",
   "audio_url": "outputs/xxxx.wav",
-  "led": "dim_blue",
+  "led": "blue",
   "vibe": "soft_continuous",
   "oled_expression": "EXPR_SAD",
   "user_text": "오늘 좀 힘들었어",
@@ -154,7 +154,7 @@ v1에서 정리한 "사용자 감정과 오빗 기분은 다른 것"이라는 �
 | --- | --- | --- |
 | OLED | `EXPR_NORMAL` / `HAPPY` / `SAD` / `SLEEP` / `BLINK` | `EXPR_NORMAL`, `EXPR_SAD`, `EXPR_LISTENING`, `EXPR_THINKING`, `EXPR_DIZZY` (+ 별칭 `idle_eyes`, `sad_eyes`). **`EXPR_HAPPY` 분기 없음** |
 | 진동 | `soft_continuous`, `strong_double`, `calm_wave`, `short_pulse`, `two_short_taps` | `strong_double`, `short` / `short_pulse`, `soft_continuous`. **`calm_wave`, `two_short_taps` 미구현** |
-| LED | 색깔 영어명 그대로 | `rainbow`, `dim_blue`, `purple`. 평상시에는 단계 테마색 |
+| LED | 색깔 영어명 그대로 | `rainbow`, `dim_blue`, `purple`. 평상시에는 단계 테마색. **`blue` 분기 없음** (아래 LED 공통 제어값 참조) |
 
 HW가 처리하지 않는 값을 보내면 **아무 반응이 없습니다.** AI 서버는 오른쪽 열의 값만 씁니다.
 
@@ -163,23 +163,38 @@ HW가 처리하지 않는 값을 보내면 **아무 반응이 없습니다.** AI
 | 상황 | `oled` | `led` | `vibe` |
 | --- | --- | --- | --- |
 | 긍정/중립 | `EXPR_NORMAL` | `rainbow` | `strong_double` |
-| `sad` / `fear` / 조도 50 lux 이하 | `EXPR_SAD` | `dim_blue` | `soft_continuous` |
-| `anger` / `disgust` | `EXPR_NORMAL` | `dim_blue` | `short_pulse` |
+| `sad` / `fear` / 조도 50 lux 이하 | `EXPR_SAD` | `blue` | `soft_continuous` |
+| `anger` / `disgust` | `EXPR_NORMAL` | `blue` | `short_pulse` |
 | 미션 성공 | `EXPR_HAPPY` | `rainbow` | `strong_double` |
-| 미션 조건 미달 | `EXPR_NORMAL` | `dim_blue` | `short_pulse` |
-| 미션 거부 (보류) | `EXPR_NORMAL` | `dim_blue` | `soft_continuous` |
+| 미션 조건 미달 | `EXPR_NORMAL` | `blue` | `short_pulse` |
+| 미션 거부 (보류) | `EXPR_NORMAL` | `blue` | `soft_continuous` |
 | 처리 중 | `EXPR_THINKING` | — | — |
-| 통신 장애 (비상 프로토콜) | `EXPR_SAD` | `dim_blue` | `short_pulse` |
-| 고위험 발화 | `EXPR_SAD` | `dim_blue` | `none` (HW가 무시 → 진동 없음) |
+| 통신 장애 (비상 프로토콜) | `EXPR_SAD` | `blue` | `short_pulse` |
+| 고위험 발화 | `EXPR_SAD` | `blue` | `none` (HW가 무시 → 진동 없음) |
 
 - `anger` / `disgust` 는 v1에서 `dim_white` / `calm_wave` 였으나 HW에 없습니다. `calm_wave` 가 구현되면 진동을 되돌립니다.
-- `anger` / `disgust` 와 미션 조건 미달의 LED는 처음에 "보내지 않음"으로 잡았으나 **`dim_blue` 로 정했습니다**(10-01). LED 값은 LLM이 고르거나 응답 필드에 반드시 들어가는 구조라 "없음"을 표현하려면 필드를 비울 수 있게 바꿔야 하는데, 그보다 단순한 쪽을 택했습니다. `sad` 와는 진동(`short_pulse`)으로 구분됩니다.
+- `anger` / `disgust` 와 미션 조건 미달의 LED는 처음에 "보내지 않음"으로 잡았으나 **`blue` 로 정했습니다**(10-01). LED 값은 LLM이 고르거나 응답 필드에 반드시 들어가는 구조라 "없음"을 표현하려면 필드를 비울 수 있게 바꿔야 하는데, 그보다 단순한 쪽을 택했습니다. `sad` 와는 진동(`short_pulse`)으로 구분됩니다.
 - 통신 장애는 v1에서 `orange` 였으나 HW에 없습니다. 비상 응답은 키링 플래시에 저장해 두고 로컬 재생하기로 했으므로(09-17 안건 2 장애 대응), 이 값은 서버가 살아 있고 Gemini만 실패한 경우에만 쓰입니다.
 
-### 정할 것
+### LED 공통 제어값 (10-01 확정)
 
-- **LED의 의미.** HW는 평상시 LED를 단계 테마색(RTC 메모리 유지)으로 쓰고 있고, AI는 감정 색을 보냅니다. 회의에서 "단계 vs 감정, 둘 다라면 우선순위"를 정할 것으로 남겼습니다. 이 문서는 "평상시 단계색, AI 응답 시 잠시 감정색 후 단계색 복귀"를 제안합니다.
-- **"색깔 영어명 그대로"와 `rainbow` / `dim_blue`.** 둘 다 순수 색 이름이 아닙니다. HW가 이미 이 이름으로 구현했으므로 유지하는 쪽을 제안합니다.
+09-17 회의 규칙("뭐 붙이지 말고 색깔 영어명 그대로")에 따라 정했습니다. **LED는 평상시 단계 테마색, 이벤트가 있으면 잠깐 이벤트 색으로 바뀌었다가 단계 테마색으로 돌아갑니다.** 회의에서 미정으로 남긴 "LED가 단계를 나타내나, 감정을 나타내나"를 "둘 다, 이벤트가 우선"으로 정리한 것입니다.
+
+| 값 | 의미 | 보내는 쪽 | HW 현재 구현 (RGB) |
+| --- | --- | --- | --- |
+| `rainbow` | 긍정·중립, 미션 성공 | AI | 있음 (`rainbow`, 255,100,255 페이드) |
+| `blue` | sad·부정, 미션 조건 미달·보류, 비상, 고위험 | AI | `dim_blue` 라는 이름으로 있음 (0,50,150) |
+| `purple` | 어지러움(흔들기) | HW 내부 | 있음 (180,0,255) |
+| `yellow` | 쓰다듬기(터치) | HW 내부 | 있음 (255,200,0) |
+| `pink` | 1단계 테마색 | HW (단계값 기준) | 있음 (255,60,100) |
+| `orange` | 2단계 테마색 | HW | 있음 (255,80,0) |
+| `lime` | 3단계 테마색 | HW | 있음 (127,255,0) |
+| `green` | 4단계 테마색 | HW | 있음 (0,255,60) |
+| `skyblue` | 부팅 기본색 | HW | 있음 (135,206,250) |
+
+- **`rainbow` 는 예외입니다.** 색 이름이 아니라 효과 이름이고 실제 동작은 분홍빛 페이드지만, 축하 연출이라 이름을 유지합니다.
+- **HW 작업:** `applyHardwareAction` 에 `blue` 분기를 추가해야 합니다. 전환 기간에는 `dim_blue` 도 같이 받습니다. AI 서버는 10-01부터 `blue` 를 보내므로, **HW가 고치기 전까지 파랑 신호는 표시되지 않습니다.**
+- **단계 테마색을 바꿀 경로가 없습니다.** 단계 상승은 백엔드가 하는데 HW는 시리얼 입력으로만 단계 색을 바꿉니다. 백엔드가 단계 변경 시 키링에 단계 값을 보내는 경로(MQTT 하향 메시지 등)가 필요합니다. 백엔드·HW가 정합니다.
 
 ### v1 대비
 
@@ -237,6 +252,6 @@ v1은 MQTT 센서값으로 미션을 판정하는 것을 전제로 JSON 전환�
 | 2026-10-01 | v1.1 개정 | 09-17 결정 반영. AI 모델 출력 → 공통 감정값 변환 규칙 제안 |
 | 2026-10-01 | 감정 긍정 보정 | `neutral` + 긍정 표현 → `happy` 채택 (AI/PM). AI 서버 구현 완료 |
 |  | 감정 변환 규칙 (라벨 매핑 + 긍정 보정) | 팀 승인 대기. AI 서버는 이 규칙으로 구현됨 |
-|  | LED 의미 (단계 vs 감정) | 협의 대기 |
+| 2026-10-01 | LED 공통 제어값 | 색깔 영어명. AI는 `rainbow` / `blue`, HW는 `purple` / `yellow` 와 단계 테마색 `pink` / `orange` / `lime` / `green`. 평상시 단계색, 이벤트 시 잠깐 이벤트 색 (3절) |
 |  | 응답 JSON 구조 · 응답 오디오 형식 | HW 확인 대기 |
 |  | `userId` 타입 | 협의 대기 |

@@ -35,7 +35,7 @@ VISION_PROMPT = """
 
 VISION_FALLBACK = InteractResponse(
     speech="치직- 대장님, 전송된 영상 데이터 유실로 분석에 실패했습니다. 오버.",
-    led=Led.DIM_BLUE,
+    led=Led.BLUE,
     vibe=Vibe.SHORT_PULSE,
     oled_expression=OledExpression.SAD,
     fallback_triggered=True,

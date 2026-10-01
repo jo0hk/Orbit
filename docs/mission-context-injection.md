@@ -38,8 +38,8 @@ AI 서버의 판정 결과를 내부 값 `MissionResult` 로 표현합니다. �
 | 판정 | `MissionResult` | 백엔드 결과 API | 오빗 반응 | HW 신호 (`oled` · `led` · `vibe`) |
 | --- | --- | --- | --- | --- |
 | 성공 | `SUCCESS` | `success: true` → `COMPLETED`, stage +1 | 축하 | `EXPR_HAPPY` · `rainbow` · `strong_double` |
-| 조건 미달 | `RETRY` | `success: false` → `IN_PROGRESS` 유지 | 재시도 권유 | `EXPR_NORMAL` · `dim_blue` · `short_pulse` |
-| 거부 | `FAIL` (의미: **보류**) | **호출하지 않음** | 담담한 접수 | `EXPR_NORMAL` · `dim_blue` · `soft_continuous` |
+| 조건 미달 | `RETRY` | `success: false` → `IN_PROGRESS` 유지 | 재시도 권유 | `EXPR_NORMAL` · `blue` · `short_pulse` |
+| 거부 | `FAIL` (의미: **보류**) | **호출하지 않음** | 담담한 접수 | `EXPR_NORMAL` · `blue` · `soft_continuous` |
 | 미션 무관 | `NONE` | — | — | 감정 매핑 (기존) |
 
 - **"실패"는 없습니다.** `success: false` 는 "아직"이며 백엔드도 상태를 `IN_PROGRESS` 로 유지해 같은 날 다시 할 수 있습니다. 프롬프트에 "실패"라는 단어를 넣지 않습니다.
@@ -132,7 +132,7 @@ persona.md
 - 임무: {mission_name}
 1. 보류를 담담히 접수하라. "실패", "아쉽다"를 쓰지 마라.
 2. 이 임무를 다시 권하지 마라. 쉬어도 된다는 뜻만 전하라.
-3. led는 dim_blue, vibe는 soft_continuous.
+3. led는 blue, vibe는 soft_continuous.
 ```
 
 초판의 "실내 대체 미션 제안"은 삭제했습니다. 단계당 미션이 1개라 대체할 미션이 없습니다. 다음날 같은 단계 미션이 다시 배정됩니다.
@@ -273,12 +273,12 @@ def build_system_prompt(emotion: Emotion, ctx: EnvContext) -> str:
 
 MISSION_SIGNAL = {  # oled, led, vibe — 09-17 공통 제어값 중 HW 구현분
     MissionResult.SUCCESS: ("EXPR_HAPPY", "rainbow", "strong_double"),
-    MissionResult.RETRY: ("EXPR_NORMAL", "dim_blue", "short_pulse"),
-    MissionResult.FAIL: ("EXPR_NORMAL", "dim_blue", "soft_continuous"),
+    MissionResult.RETRY: ("EXPR_NORMAL", "blue", "short_pulse"),
+    MissionResult.FAIL: ("EXPR_NORMAL", "blue", "soft_continuous"),
 }
 ```
 
-`Led` / `Vibe` / `OledExpression` enum(`ai/app/schemas.py`)은 10-01에 위 값으로 정리했습니다. 이 매핑은 `ai/app/missions.py` 의 `SIGNAL_SUCCESS` / `SIGNAL_TIMEOUT` / `SIGNAL_DEFERRED` 로 이미 정의되어 있습니다. 조건 미달의 LED는 처음에 "보내지 않음"이었으나, 응답 필드에 LED가 반드시 들어가는 구조라 `dim_blue` 로 정했습니다. 보류와는 진동으로 구분됩니다.
+`Led` / `Vibe` / `OledExpression` enum(`ai/app/schemas.py`)은 10-01에 위 값으로 정리했습니다. 이 매핑은 `ai/app/missions.py` 의 `SIGNAL_SUCCESS` / `SIGNAL_TIMEOUT` / `SIGNAL_DEFERRED` 로 이미 정의되어 있습니다. 조건 미달의 LED는 처음에 "보내지 않음"이었으나, 응답 필드에 LED가 반드시 들어가는 구조라 `blue` 로 정했습니다. 보류와는 진동으로 구분됩니다.
 
 ---
 

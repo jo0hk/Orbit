@@ -181,8 +181,8 @@ HW 코드(`hw/Orbit/Orbit.ino` `applyHardwareAction`)가 실제로 처리하는 
 | 상황 | `oled` | `led` | `vibe` |
 | --- | --- | --- | --- |
 | 성공 | `EXPR_HAPPY` | `rainbow` | `strong_double` |
-| `success:false` (재시도) | `EXPR_NORMAL` | `dim_blue` | `short_pulse` |
-| 거부 (보류) | `EXPR_NORMAL` | `dim_blue` | `soft_continuous` |
+| `success:false` (재시도) | `EXPR_NORMAL` | `blue` | `short_pulse` |
+| 거부 (보류) | `EXPR_NORMAL` | `blue` | `soft_continuous` |
 | 판정 처리 중 (Vision 대기) | `EXPR_THINKING` | — | — |
 
 > **HW 확인 필요:** `applyHardwareAction`의 OLED 분기에 `EXPR_HAPPY`가 없습니다. 지금은 성공 신호를 보내도 표정이 바뀌지 않습니다. 시리얼 `h` 테스트도 같은 이유로 표정 변화가 없습니다. 한 줄 추가로 해결됩니다.

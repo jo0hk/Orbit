@@ -83,7 +83,7 @@ def build_high_risk_response() -> InteractResponse:
     """
     return InteractResponse(
         speech=HIGH_RISK_SPEECH,
-        led=Led.DIM_BLUE,
+        led=Led.BLUE,
         vibe=Vibe.NONE,
         oled_expression=OledExpression.SAD,
         high_risk_detected=True,

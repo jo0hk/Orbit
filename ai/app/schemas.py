@@ -39,15 +39,19 @@ class Emotion(str, Enum):
 # 하드웨어 제어 신호
 # ─────────────────────────────────────────────────────────────
 class Led(str, Enum):
-    """WS2812B 네오픽셀 패턴.
+    """WS2812B 네오픽셀. AI가 보내는 이벤트 색입니다.
 
-    09-17 공통 제어값 중 HW(`hw/Orbit/Orbit.ino` applyHardwareAction)가 실제로
-    처리하는 값만 둡니다. HW가 모르는 값을 보내면 아무 반응이 없습니다.
-    평상시 LED는 HW가 단계 테마색으로 유지합니다 (docs/interface-spec-v1.md 3절).
+    LED 공통 제어값(10-01 확정, docs/interface-spec-v1.md 3절)은 색깔 영어명입니다.
+    AI는 이 중 rainbow / blue 만 보냅니다. purple·yellow는 HW 내부 반응,
+    pink·orange·lime·green은 HW가 평상시 켜는 1~4단계 테마색입니다.
+    이벤트 색은 잠깐 켜진 뒤 단계 테마색으로 돌아갑니다.
+
+    ⚠️ HW applyHardwareAction 은 아직 "dim_blue" 라는 이름으로만 파랑을 받습니다.
+       HW가 "blue" 분기를 추가할 때까지 파랑 신호는 표시되지 않습니다.
     """
 
-    RAINBOW = "rainbow"        # 긍정/중립, 미션 성공
-    DIM_BLUE = "dim_blue"      # sad / fear / anger / disgust, 조도 50 lux 이하, 비상·고위험
+    RAINBOW = "rainbow"  # 긍정/중립, 미션 성공. 색 이름은 아니지만 축하 연출이라 예외로 둠
+    BLUE = "blue"        # sad / fear / anger / disgust, 조도 50 lux 이하, 미션 미달·보류, 비상·고위험
 
 
 class Vibe(str, Enum):

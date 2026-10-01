@@ -30,7 +30,7 @@ def test_hw_values_match_persona_prompt():
     프롬프트만 고치고 enum을 안 고치면 LLM 응답이 폐기되고 비상 프로토콜로
     떨어집니다. 그 반대도 마찬가지입니다.
     """
-    assert {e.value for e in Led} == {"rainbow", "dim_blue"}
+    assert {e.value for e in Led} == {"rainbow", "blue"}
 
     # Vibe.NONE은 서버 전용(고위험 발화 대응)이라 프롬프트에 노출하지 않습니다.
     llm_selectable = {v.value for v in Vibe} - {"none"}

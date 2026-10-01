@@ -26,7 +26,7 @@
 | A | `치직- 임무 보류 접수. 기록은 안전하게 보관합니다. 교신 종료` |
 | B | `치직- 알겠습니다. 오늘은 쉬어 가도 괜찮습니다. 교신 종료` |
 
-`led` `dim_blue` · `vibe` `soft_continuous` · `oled` `EXPR_NORMAL`
+`led` `blue` · `vibe` `soft_continuous` · `oled` `EXPR_NORMAL`
 
 **후속** — 미션 결과 API를 **호출하지 않습니다**(보류). 미션은 `IN_PROGRESS` 로 남고 다음날 같은 단계 미션이 다시 배정됩니다. 실패 판정은 강요하는 톤을 만듭니다.
 
@@ -43,7 +43,7 @@
 | A | `치직- 대장님 에너지 수치 저하 확인. 충전 시간이 필요합니다. 오버` |
 | B | `치직- 무리한 탐사는 금물입니다. 오늘은 여기까지. 교신 종료` |
 
-`led` `dim_blue` · `vibe` `soft_continuous` · `oled` `EXPR_SAD`
+`led` `blue` · `vibe` `soft_continuous` · `oled` `EXPR_SAD`
 
 ---
 
@@ -58,7 +58,7 @@
 | A | `치직- 적대 신호 감지. 제 분석에 오류가 있었나 봅니다. 오버` |
 | B | `치직- 대장님 심기 불편 확인. 교신 방식을 재조정하겠습니다. 라저` |
 
-`led` `dim_blue` · `vibe` `short_pulse` · `oled` `EXPR_NORMAL`
+`led` `blue` · `vibe` `short_pulse` · `oled` `EXPR_NORMAL`
 
 > 개정 전 값 `dim_white` / `calm_wave` / `wide_eyes` 는 HW에 없습니다. HW가 `calm_wave` 를 구현하면 진동만 되돌립니다.
 
@@ -73,7 +73,7 @@
 | A | `치직- 대장님? 음성 신호가 잡히지 않습니다. 응답 바랍니다. 오버` |
 | B | `치직- 교신 대기 중입니다. 준비되시면 송신해 주십시오. 오버` |
 
-`led` `dim_blue` · `vibe` `short_pulse` · `oled` `EXPR_LISTENING`
+`led` `blue` · `vibe` `short_pulse` · `oled` `EXPR_LISTENING`
 
 > `two_short_taps` 는 09-17 공통 진동값에 있지만 HW에 아직 구현되지 않아 `short_pulse` 로 대신합니다. 다시 말해 달라는 상황이라 "듣는 중" 표정(`EXPR_LISTENING`)을 씁니다.
 
@@ -90,7 +90,7 @@
 | A | `치직- 교신 잡음이 심합니다. 다시 송신 바랍니다. 오버` |
 | B | `치직- 신호 왜곡 발생. 한 번 더 말씀해 주십시오. 오버` |
 
-`led` `dim_blue` · `vibe` `short_pulse` · `oled` `EXPR_LISTENING`
+`led` `blue` · `vibe` `short_pulse` · `oled` `EXPR_LISTENING`
 
 ---
 
@@ -119,10 +119,10 @@
 
 ```
 치직- 통신 장애 발생. 태양풍 간섭으로 교신이 끊겼습니다. 오버.
-led=orange  vibe=short  oled=sad_eyes  fallback_triggered=true
+led=blue  vibe=short_pulse  oled=EXPR_SAD  fallback_triggered=true
 ```
 
-> 위는 현재 코드 값입니다. `orange` 는 HW에 없으므로 `led=dim_blue  vibe=short_pulse  oled=EXPR_SAD` 로 바꿀 예정입니다(`docs/interface-spec-v1.md` 3절). 네트워크가 완전히 끊긴 경우는 서버가 응답할 수 없으므로, 키링 플래시에 저장한 비상 음성을 로컬 재생합니다(09-17 회의).
+> 1학기 값 `orange` / `short` / `sad_eyes` 는 HW에 없어 10-01에 바꿨습니다. 네트워크가 완전히 끊긴 경우는 서버가 응답할 수 없으므로, 키링 플래시에 저장한 비상 음성을 로컬 재생합니다(09-17 회의).
 
 ---
 

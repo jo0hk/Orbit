@@ -20,8 +20,8 @@
 | 조건 | led | vibe |
 | --- | --- | --- |
 | 긍정/중립이거나 환경이 양호할 때 | `rainbow` | `strong_double` |
-| `sad`, `fear` 또는 조도 50 lux 이하 | `dim_blue` | `soft_continuous` |
-| `anger`, `disgust` | `dim_blue` | `short_pulse` |
+| `sad`, `fear` 또는 조도 50 lux 이하 | `blue` | `soft_continuous` |
+| `anger`, `disgust` | `blue` | `short_pulse` |
 
 허용값은 `app/schemas.py`의 `Led` / `Vibe` enum과 일치해야 한다. 키링(HW)이 실제로 처리하는 값만 쓴다.
 여기에 없는 값을 지어내면 서버가 응답을 폐기하고 비상 프로토콜로 대체한다.
