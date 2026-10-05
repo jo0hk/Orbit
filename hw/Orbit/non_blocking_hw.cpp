@@ -24,8 +24,8 @@ static void updateLED() {
 
   unsigned long now = millis();
 
+  // 1. 평상시 (LED_IDLE): 현재 Stage 대표색 숨쉬기
   if (currentLedState != LED_BREATH && currentLedState != LED_FADE) {
-    // 1. 평상시 (LED_IDLE): Stage 대표색 숨쉬기
     StageColor curColor = getCurrentStageColor();
     unsigned long cycle = now % 3000;
     uint8_t baseBrightness = (cycle < 1500) ? map(cycle, 0, 1500, 10, 40) 
@@ -34,11 +34,11 @@ static void updateLED() {
     return;
   }
 
-  // 2. 일시적 LED 효과 (BREATH / FADE)
+  // 2. 일시적 LED 효과 연출
   unsigned long elapsed = now - ledEffectStartTime;
 
   if (currentLedState == LED_BREATH) {
-    // ★ 원본 원복: % 연산으로 손을 대고 있는 동안 노란빛 페이드 무한 유지
+    // 손을 대고 있는 동안 지속되는 숨쉬기 연출
     uint16_t halfDuration = ledEffectDuration / 2;
     unsigned long progress = elapsed % ledEffectDuration; 
 
@@ -53,7 +53,7 @@ static void updateLED() {
   } 
   else if (currentLedState == LED_FADE) {
     if (elapsed >= ledEffectDuration) {
-      currentLedState = LED_IDLE; // Fade 효과는 시간 종료 시 스테이지 대표색으로 복귀
+      currentLedState = LED_IDLE;
       return;
     }
     uint8_t brightness = map(elapsed, 0, ledEffectDuration, 10, 150);

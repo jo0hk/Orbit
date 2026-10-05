@@ -26,7 +26,7 @@ void setExpression(FaceExpression expr, uint32_t autoReturnMs) {
 void updateHardwareAction() {
   if (exprReturnTimeout > 0 && currentExpr != EXPR_NORMAL) {
     if (millis() - exprStartTime >= exprReturnTimeout) {
-      Serial.println("[Action] 지정 시간 경과 -> 기본 표정(EXPR_NORMAL) 복귀");
+      Serial.println("[Action] 타임아웃 -> 기본 표정 복귀");
       setExpression(EXPR_NORMAL, 0);
     }
   }
@@ -36,22 +36,21 @@ void applyHardwareAction(const String& led, const String& oled, const String& vi
   Serial.printf("\n[Apply] Stage:%d | LED:%s | OLED:%s | VIBE:%s\n", 
                 stage, led.c_str(), oled.c_str(), vibe.c_str());
 
-  // 1. Stage 처리 (1~4 지정 시 원래 원본 RGB 값으로 전환)
+  // 1. Stage 처리
   if (stage >= 1 && stage <= 4) {
     setStage(stage, true);
   }
 
-  // 2. LED 연출 처리 (원래 코드의 RGB 값 매핑)
+  // 2. LED 일시 연출 처리 (Fade 후 Stage 대표색 복귀)
   if (led.length() > 0) {
     if (led.equalsIgnoreCase("rainbow") || led.equalsIgnoreCase("purple")) {
-      triggerFadeEffect(255, 100, 255, 1200); // 보라/라벤더 연출
+      triggerFadeEffect(255, 100, 255, 1200);
     } else if (led.equalsIgnoreCase("dim_blue") || led.equalsIgnoreCase("blue")) {
-      triggerFadeEffect(0, 50, 150, 1000);   // 어두운 파랑
+      triggerFadeEffect(0, 50, 150, 1000);
     } else if (led.equalsIgnoreCase("yellow") || led.equalsIgnoreCase("orange")) {
-      // ★ 수정: JSON 패킷으로 들어올 때는 일시적 Fade 연출(1.5초) 후 스테이지 대표색으로 복귀!
       triggerFadeEffect(255, 200, 0, 1500); 
     } else if (led.equalsIgnoreCase("pink")) {
-      triggerFadeEffect(255, 60, 100, 1200);  // 분홍 연출
+      triggerFadeEffect(255, 60, 100, 1200);
     } else {
       Serial.printf("[LOG_WARN] 미지원 LED 색상: %s\n", led.c_str());
     }
