@@ -1,6 +1,10 @@
 #include "OrbitSleep.h"
 #include "OrbitFace.h"
+#include "OrbitLED.h"
+#include "non_blocking_hw.h" // stopLedEffect() 및 VIBE_PIN 정의 포함
+
 extern OrbitFace face;
+extern OrbitLED orbit; // Orbit.ino에 정의된 전역 orbit 객체 참조
 
 RTC_DATA_ATTR int bootCount = 0;
 
@@ -35,9 +39,19 @@ void enterOrbitDeepSleep() {
   Serial.println("\n[설정] GPIO 14번 핀이 HIGH가 되면 깨어나도록 외부 인터럽트를 설정합니다.");
   esp_sleep_enable_ext0_wakeup(SLEEP_TOUCH_PIN, 1);
 
+  // 1. NeoPixel LED 즉시 끄기 및 효과 중단
+  stopLedEffect();
+  orbit.showColor(0, 0, 0, 0);
+
+  // 2. 진동 모터 안전 종료 (non_blocking_hw.h의 VIBE_PIN 사용)
+  pinMode(VIBE_PIN, OUTPUT);
+  digitalWrite(VIBE_PIN, LOW);
+
   Serial.flush(); // 시리얼 버퍼 비우기
 
+  // 3. OLED 자는 눈 연출 후 절전 모드 진입
   face.playSleepAnimation();
+
   // 딥슬립 모드 시작
   esp_deep_sleep_start();
 }
