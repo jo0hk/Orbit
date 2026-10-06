@@ -2,6 +2,7 @@
 #include "OrbitFace.h"
 #include "OrbitLED.h"
 #include "non_blocking_hw.h"
+#include "mqtt_manager.h"
 
 extern OrbitFace face;
 extern OrbitLED orbit;
@@ -44,6 +45,9 @@ void enterOrbitDeepSleep() {
   digitalWrite(VIBE_PIN, LOW);
 
   Serial.flush();
+
+  // MQTT 정상 종료 후 슬립
+  shutdownMQTT();
 
   // OLED 자는 눈 애니메이션 후 패널 전원 끄기
   face.playSleepAnimation();

@@ -24,6 +24,11 @@ static void updateLED() {
 
   unsigned long now = millis();
 
+  // 매 루프마다 show() 호출하지 않도록 20ms 간격으로 제한
+  static unsigned long lastLedUpdate = 0;
+  if (now - lastLedUpdate < 20) return;
+  lastLedUpdate = now;
+
   // 1. 평상시 (LED_IDLE): 현재 Stage 대표색 숨쉬기
   if (currentLedState != LED_BREATH && currentLedState != LED_FADE) {
     StageColor curColor = getCurrentStageColor();

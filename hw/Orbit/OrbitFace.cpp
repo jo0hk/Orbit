@@ -4,7 +4,10 @@ OrbitFace::OrbitFace()
   : u8g2(U8G2_R0, U8X8_PIN_NONE), 
     currentExpr(EXPR_NORMAL), 
     lastBlinkTime(0), 
-    blinkInterval(3000) {}
+    blinkInterval(3000),
+    isBlinking(false),
+    blinkStartTime(0),
+    blinkDuration(0) {}
 
 void OrbitFace::begin() {
   Wire.begin(21, 22);
@@ -147,18 +150,31 @@ void OrbitFace::playWakeupAnimation() {
   setExpression(EXPR_NORMAL);
 }
 
-// 평상시 2.5초~5초 간격으로 눈을 깜빡이는 함수
+// 평상시 2.5초~5초 간격으로 눈을 깜빡이는 함수 (비차단)
 void OrbitFace::update() {
-  if (currentExpr != EXPR_NORMAL && currentExpr != EXPR_BLINK) return;
-
   unsigned long now = millis();
+
+  if (isBlinking) {
+    if (currentExpr != EXPR_BLINK) {   // 깜빡임 중 다른 표정으로 바뀐 경우
+      isBlinking = false;
+      return;
+    }
+    if (now - blinkStartTime >= blinkDuration) {
+      isBlinking = false;
+      setExpression(EXPR_NORMAL);
+    }
+    return;
+  }
+
+  if (currentExpr != EXPR_NORMAL) return;
+
   if (now - lastBlinkTime > blinkInterval) {
     lastBlinkTime = now;
     blinkInterval = random(2500, 5000);
-
+    blinkDuration = random(100, 400);
+    blinkStartTime = now;
+    isBlinking = true;
     setExpression(EXPR_BLINK);
-    delay(random(100, 400));
-    setExpression(EXPR_NORMAL);
   }
 }
 

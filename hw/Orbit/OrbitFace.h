@@ -23,6 +23,9 @@ private:
   FaceExpression currentExpr;
   unsigned long lastBlinkTime;
   unsigned long blinkInterval;
+  bool isBlinking;
+  unsigned long blinkStartTime;
+  unsigned long blinkDuration;
 
   void drawFace(bool isClosed, bool isHappy, bool isSad);
 

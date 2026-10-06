@@ -23,6 +23,7 @@ RTC_DATA_ATTR static int totalStepCount = 0;
 
 // 센서 영점 보정 계수
 static float accelScaleOffset = 1.0; 
+RTC_DATA_ATTR static float rtcAccelScale = 0;   // 0이면 미보정 (딥슬립 후 재사용)
 
 static void initMPUSettings() {
   Wire.beginTransmission(MPU_I2C_ADDR);
@@ -48,9 +49,16 @@ void setupMotion() {
   Wire.setTimeOut(25);
   initMPUSettings();
 
-  // 부팅 직후 정지 상태 중력(1.0g) 캘리브레이션
+  // 터치로 깨어난 경우: 손에 든 상태라 재측정하면 부정확하므로 저장된 보정값 재사용
+  if (esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_EXT0 && rtcAccelScale > 0) {
+    accelScaleOffset = rtcAccelScale;
+    Serial.printf("[Motion] 저장된 보정 계수 재사용 (%.2f)\n", accelScaleOffset);
+    return;
+  }
+
+  // 전원 인가 직후 정지 상태 중력(1.0g) 캘리브레이션
   delay(100);
-  float sumMag = 0;
+  float sumMag = 0, minMag = 99, maxMag = 0;
   int samples = 0;
 
   for (int i = 0; i < 20; i++) {
@@ -63,17 +71,24 @@ void setupMotion() {
       float ax = rawAx / 8192.0;
       float ay = rawAy / 8192.0;
       float az = rawAz / 8192.0;
-      sumMag += sqrt(ax * ax + ay * ay + az * az);
+      float m = sqrt(ax * ax + ay * ay + az * az);
+      sumMag += m;
+      if (m < minMag) minMag = m;
+      if (m > maxMag) maxMag = m;
       samples++;
     }
     delay(10);
   }
 
-  if (samples > 0) {
+  if (samples >= 10) {
     float avgMag = sumMag / samples;
-    if (avgMag > 0.5) {
+    // 정지 상태(편차 작음) + 중력 범위일 때만 보정, 아니면 계수 1.0 유지
+    if ((maxMag - minMag) < 0.08 && avgMag > 0.7 && avgMag < 1.4) {
       accelScaleOffset = 1.0 / avgMag;
+      rtcAccelScale = accelScaleOffset;
       Serial.printf("[Motion] 센서 오프셋 보정 완료 (측정: %.2fg, 계수: %.2f)\n", avgMag, accelScaleOffset);
+    } else {
+      Serial.printf("[Motion] 움직임/이상값 감지 -> 보정 생략 (평균 %.2fg, 편차 %.2f)\n", avgMag, maxMag - minMag);
     }
   }
 }
