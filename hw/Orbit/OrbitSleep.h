@@ -2,10 +2,9 @@
 #define ORBIT_SLEEP_H
 
 #include <Arduino.h>
+#include "config.h"   // SLEEP_TIMEOUT_MS
 
 #define SLEEP_TOUCH_PIN    GPIO_NUM_14 
-#define SLEEP_TIMEOUT_MS   30000 
-
 extern RTC_DATA_ATTR int bootCount;
 
 void initSleepSystem();

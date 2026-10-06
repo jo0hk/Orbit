@@ -1,4 +1,5 @@
 #include "event_detector.h"
+#include "config.h"
 #include "hardware_action.h"
 #include "non_blocking_hw.h"
 
@@ -7,6 +8,7 @@ static TouchHandler* globalTouch = nullptr;
 static bool longTouchTriggered = false;
 static unsigned long lastMotionTick = 0;
 static unsigned long lastWalkingTime = 0;
+static int lastSteps = 0;   // 모션 틱이 아닌 루프에서도 최신 걸음 수 유지
 
 void setupEventDetector(TouchHandler* touchPtr) {
   globalTouch = touchPtr;
@@ -14,7 +16,7 @@ void setupEventDetector(TouchHandler* touchPtr) {
 }
 
 RobotEvent updateEventDetector(unsigned long& lastActivityTime) {
-  RobotEvent event = { false, false, false, false, 0 };
+  RobotEvent event = { false, false, false, false, lastSteps };
   unsigned long now = millis();
 
   // 1. 터치 센서 이벤트 감지
@@ -40,18 +42,18 @@ RobotEvent updateEventDetector(unsigned long& lastActivityTime) {
     lastMotionTick = now;
     MotionResult motion = updateMotion();
 
-    event.currentSteps = motion.currentSteps;
+    lastSteps = motion.currentSteps;
+    event.currentSteps = lastSteps;
 
-    // 걸음 및 이동 감지 시 쿨다운 타이머 연장
     if (motion.stepDetected) {
       event.stepDetected = true;
       lastActivityTime = now;
       lastWalkingTime = now;
     }
 
-    // 흔들기 감지 (최근 걸음/이동 후 800ms 경과 시 허용)
+    // 흔들기 감지 (마지막 걸음 이후 SHAKE_STILL_MS(3초) 이상 정지한 상태에서만 허용)
     if (motion.isShaken) {
-      if (now - lastWalkingTime > 800) { 
+      if (now - lastWalkingTime > SHAKE_STILL_MS) {
         event.isShaken = true;
         lastActivityTime = now;
         Serial.println("[Event] SHAKE 감지 (어지러움)!");
