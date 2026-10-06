@@ -11,12 +11,44 @@ import org.springframework.integration.mqtt.core.MqttPahoClientFactory;
 import org.springframework.integration.mqtt.inbound.MqttPahoMessageDrivenChannelAdapter;
 import org.springframework.integration.mqtt.support.DefaultPahoMessageConverter;
 import org.springframework.messaging.MessageChannel;
-
+import org.springframework.integration.mqtt.outbound.MqttPahoMessageHandler;
+import org.springframework.messaging.MessageHandler;
+import org.springframework.integration.annotation.ServiceActivator;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.integration.annotation.IntegrationComponentScan;
 import java.util.UUID;
 
 @Configuration
 @EnableIntegration
+@IntegrationComponentScan
+
 public class MqttConfig {
+
+    @Bean
+    public ObjectMapper objectMapper() {
+        return new ObjectMapper();
+    }
+
+    @Bean(name = "mqttOutboundChannel")
+    public MessageChannel mqttOutboundChannel() {
+        return new DirectChannel();
+    }
+
+    @Bean
+    @ServiceActivator(inputChannel = "mqttOutboundChannel")
+    public MessageHandler mqttOutbound(
+            MqttPahoClientFactory clientFactory
+    ) {
+        MqttPahoMessageHandler handler =
+                new MqttPahoMessageHandler(
+                        "spring-publisher-" + UUID.randomUUID(),
+                        clientFactory
+                );
+
+        handler.setAsync(true);
+
+        return handler;
+    }
 
     @Bean
     public MqttPahoClientFactory mqttClientFactory() {
