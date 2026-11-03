@@ -1,10 +1,13 @@
+
 package com.example.demo.service;
 
 import com.example.demo.domain.CharacterRepository;
 import com.example.demo.domain.CharacterStatus;
 import com.example.demo.dto.MissionResponse;
+import com.example.demo.dto.MissionResultRequest;
 import com.example.demo.entity.Mission;
 import com.example.demo.entity.UserMission;
+import com.example.demo.entity.MissionStatus;
 import com.example.demo.repository.MissionRepository;
 import com.example.demo.repository.UserMissionRepository;
 
@@ -19,9 +22,6 @@ import org.springframework.web.server.ResponseStatusException;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.List;
-
-import com.example.demo.dto.MissionResultRequest;
-import com.example.demo.entity.MissionStatus;
 
 @Service
 @RequiredArgsConstructor
@@ -44,16 +44,14 @@ public class MissionService {
 
     // 오늘의 미션 배정
     @Transactional
-    public MissionResponse assignTodayMission(Integer userId) {
-
-        Long id = userId.longValue();
+    public MissionResponse assignTodayMission(Long userId) {
 
         LocalDate today =
                 LocalDate.now(ZoneId.of("Asia/Seoul"));
 
         // 이미 오늘 배정된 미션이 있는지 확인
         var existing = userMissionRepository
-                .findByUserIdAndAssignedDate(id, today);
+                .findByUserIdAndAssignedDate(userId, today);
 
         if (existing.isPresent()) {
             return MissionResponse.from(existing.get());
@@ -84,7 +82,7 @@ public class MissionService {
 
         // 오늘의 미션 생성 및 저장
         UserMission userMission =
-                new UserMission(id, mission);
+                new UserMission(userId, mission);
 
         userMissionRepository.save(userMission);
 
@@ -93,14 +91,14 @@ public class MissionService {
 
     // 오늘의 미션 조회
     @Transactional(readOnly = true)
-    public MissionResponse getCurrentMission(Integer userId) {
+    public MissionResponse getCurrentMission(Long userId) {
 
         LocalDate today =
                 LocalDate.now(ZoneId.of("Asia/Seoul"));
 
         UserMission userMission = userMissionRepository
                 .findByUserIdAndAssignedDate(
-                        userId.longValue(),
+                        userId,
                         today
                 )
                 .orElseThrow(() ->
@@ -116,12 +114,12 @@ public class MissionService {
     // 사용자 미션 진행 기록 조회
     @Transactional(readOnly = true)
     public List<MissionResponse> getMissionProgress(
-            Integer userId
+            Long userId
     ) {
 
         return userMissionRepository
                 .findAllByUserIdOrderByAssignedDateDescIdDesc(
-                        userId.longValue()
+                        userId
                 )
                 .stream()
                 .map(MissionResponse::from)
@@ -145,7 +143,7 @@ public class MissionService {
             );
         }
 
-        Long userId = request.userId().longValue();
+        Long userId = request.userId();
 
         LocalDate today =
                 LocalDate.now(ZoneId.of("Asia/Seoul"));
@@ -181,13 +179,14 @@ public class MissionService {
         }
 
         // 5. 미션 실패 시 상태 유지
+        // AI는 SUCCESS일 때만 POST하므로 일반 연동에서는 사용하지 않음
         if (!request.success()) {
             return MissionResponse.from(userMission);
         }
 
         // 6. 사용자 캐릭터 조회
         CharacterStatus character = characterRepository
-                .findByUserId(request.userId())
+                .findByUserId(userId)
                 .orElseThrow(() ->
                         new ResponseStatusException(
                                 HttpStatus.NOT_FOUND,

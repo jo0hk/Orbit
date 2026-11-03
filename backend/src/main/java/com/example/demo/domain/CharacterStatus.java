@@ -1,3 +1,4 @@
+
 package com.example.demo.domain;
 
 import jakarta.persistence.*;
@@ -19,7 +20,7 @@ public class CharacterStatus {
     private Long charId;
 
     @Column(name = "user_id")
-    private Integer userId;
+    private Long userId;
 
     @Column(name = "fuel_gauge")
     private Integer fuelGauge = 35;

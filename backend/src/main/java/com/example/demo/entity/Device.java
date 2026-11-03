@@ -32,12 +32,12 @@ public class Device {
 
     // 연결된 사용자 ID
     @Column(name = "user_id", nullable = false, unique = true)
-    private Integer userId;
+    private Long userId;
 
     public Device(
             String deviceId,
             Long charId,
-            Integer userId
+            Long userId
     ) {
         this.deviceId = deviceId;
         this.charId = charId;

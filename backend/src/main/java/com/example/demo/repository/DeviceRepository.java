@@ -18,5 +18,5 @@ public interface DeviceRepository
 
     boolean existsByCharId(Long charId);
 
-    boolean existsByUserId(Integer userId);
+    boolean existsByUserId(Long userId);
 }

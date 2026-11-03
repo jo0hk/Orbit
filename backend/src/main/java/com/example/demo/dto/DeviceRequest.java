@@ -11,5 +11,5 @@ public class DeviceRequest {
 
     private Long charId;
 
-    private Integer userId;
+    private Long userId;
 }
