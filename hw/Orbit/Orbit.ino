@@ -26,6 +26,16 @@ static unsigned long bootEffectEndTime = 0;
 static bool wasTouching = false;
 static int pendingSteps = 0;
 
+// 이벤트 발행 (payload 형식은 config.h의 STATUS_PAYLOAD_JSON에 따름, 미지원 이벤트는 생략)
+static void sendEvent(const char* event, int stepCount) {
+  String payload = buildEventPayload(event, stepCount);
+  if (payload.length() == 0) {
+    Serial.printf("[Event] %s: 현재 payload 모드에서 미지원 -> 발행 생략\n", event);
+    return;
+  }
+  publishMQTT(payload);
+}
+
 // 하드웨어 제어 객체 (OrbitSleep.cpp에서 extern 참조)
 OrbitLED orbit(NUMPIXELS, LED_PIN);
 OrbitFace face;
@@ -119,7 +129,7 @@ void loop() {
 
   // 3-2) 길게 누름 -> 서버 전송
   if (event.isLongTouch) {
-    publishMQTT(buildEventJson("TOUCH_LONG", event.currentSteps));
+    sendEvent("TOUCH_LONG", event.currentSteps);
   }
 
   // 3-3) 흔들기(어지러움) 반응 + 서버 전송
@@ -127,7 +137,7 @@ void loop() {
     if (now - lastDizzyTime > 3500) {
       setExpression(EXPR_DIZZY, 2000);
       triggerFadeEffect(180, 0, 255, 1200);
-      publishMQTT(buildEventJson("SHAKE", event.currentSteps));
+      sendEvent("SHAKE", event.currentSteps);
       lastDizzyTime = now;
     }
   }
@@ -138,7 +148,7 @@ void loop() {
 #if STEP_TICK_PUBLISH_ENABLED
     pendingSteps++;
     if (pendingSteps >= STEP_TICK_BATCH) {
-      publishMQTT(buildEventJson("STEP_TICK", event.currentSteps));
+      sendEvent("STEP_TICK", event.currentSteps);
       pendingSteps = 0;
     }
 #endif
