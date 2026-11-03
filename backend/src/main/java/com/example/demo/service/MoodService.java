@@ -1,5 +1,7 @@
+
 package com.example.demo.service;
 
+import com.example.demo.entity.Emotion;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -12,7 +14,11 @@ public class MoodService {
     }
 
     public void setMood(String mood) {
-        this.currentMood = mood;
+
+        Emotion emotion = Emotion.fromString(mood);
+
+        this.currentMood = emotion.toJson();
+
         System.out.println("현재 mood 변경됨: " + currentMood);
     }
 }

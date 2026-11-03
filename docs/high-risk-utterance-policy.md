@@ -85,7 +85,7 @@ HARM_CATEGORY_DANGEROUS_CONTENT → BLOCK_NONE   ⚠️
 
 | 항목 | 값 |
 | --- | --- |
-| `led` | `dim_blue` (차분하게, 깜빡임 없이) |
+| `led` | `blue` (차분하게, 깜빡임 없이) |
 | `vibe` | `none` 또는 최소 |
 | `oled_expression` | `sad_eyes` |
 

@@ -52,9 +52,9 @@ def test_whitespace_is_normalized():
 def test_response_signals_are_calm():
     """축하·경고 패턴을 쓰지 않습니다. 진동으로 놀라게 하지 않습니다."""
     res = build_high_risk_response()
-    assert res.led is Led.DIM_BLUE
+    assert res.led is Led.BLUE
     assert res.vibe is Vibe.NONE
-    assert res.oled_expression is OledExpression.SAD_EYES
+    assert res.oled_expression is OledExpression.SAD
     assert res.high_risk_detected is True
 
 

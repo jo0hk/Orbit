@@ -30,11 +30,24 @@ def test_hw_values_match_persona_prompt():
     프롬프트만 고치고 enum을 안 고치면 LLM 응답이 폐기되고 비상 프로토콜로
     떨어집니다. 그 반대도 마찬가지입니다.
     """
-    assert {e.value for e in Led} == {"rainbow", "dim_blue", "dim_white", "orange"}
+    assert {e.value for e in Led} == {"rainbow", "blue"}
 
     # Vibe.NONE은 서버 전용(고위험 발화 대응)이라 프롬프트에 노출하지 않습니다.
     llm_selectable = {v.value for v in Vibe} - {"none"}
-    assert llm_selectable == {"strong_double", "soft_continuous", "calm_wave", "short"}
+    assert llm_selectable == {"strong_double", "soft_continuous", "short_pulse"}
+
+    # 프롬프트 매핑표에 실제로 적힌 값이 enum 안에 있는지 (프롬프트만 고친 경우를 잡음)
+    from app.core.context import load_persona
+
+    persona = load_persona()
+    table = persona.split("## 멀티모달 하드웨어 매핑 룰", 1)[1].split("##", 1)[0]
+    rows = [line for line in table.splitlines() if line.startswith("| ") and "`" in line]
+    assert rows, "persona.md에서 하드웨어 매핑표를 찾지 못했습니다"
+    for row in rows:
+        cells = [c.strip() for c in row.strip("|").split("|")]
+        led, vibe = cells[-2].strip("`"), cells[-1].strip("`")
+        assert led in {e.value for e in Led}, row
+        assert vibe in llm_selectable, row
 
 
 def test_emotion_labels_match_trained_model():

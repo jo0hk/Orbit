@@ -35,9 +35,9 @@ VISION_PROMPT = """
 
 VISION_FALLBACK = InteractResponse(
     speech="치직- 대장님, 전송된 영상 데이터 유실로 분석에 실패했습니다. 오버.",
-    led=Led.ORANGE,
-    vibe=Vibe.SHORT,
-    oled_expression=OledExpression.SAD_EYES,
+    led=Led.BLUE,
+    vibe=Vibe.SHORT_PULSE,
+    oled_expression=OledExpression.SAD,
     fallback_triggered=True,
 )
 
@@ -78,7 +78,7 @@ class ExplorationVision:
                 speech=raw["speech"],
                 led=Led(raw["led"]),
                 vibe=Vibe(raw["vibe"]),
-                oled_expression=OledExpression.STAR_EYES,
+                oled_expression=OledExpression.HAPPY,
             )
         except Exception:
             logger.warning("비전 미션 실패: %s", image_path, exc_info=True)

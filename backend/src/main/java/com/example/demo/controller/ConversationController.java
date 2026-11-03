@@ -6,7 +6,7 @@ import com.example.demo.service.ConversationService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-
+import org.springframework.http.HttpStatus;
 import java.util.List;
 
 @RestController
@@ -32,5 +32,23 @@ public class ConversationController {
         return ResponseEntity.ok(
                 conversationService.getConversations(userId)
         );
+    }
+    @GetMapping("/{userId}/recent")
+    public ResponseEntity<List<ConversationResponse>> getRecentConversations(
+            @PathVariable Long userId,
+            @RequestParam(defaultValue = "10") int limit) {
+
+        return ResponseEntity.ok(
+                conversationService.getRecentConversations(userId, limit)
+        );
+    }
+
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<String> handleIllegalArgumentException(
+            IllegalArgumentException e) {
+
+        return ResponseEntity
+                .status(HttpStatus.CONFLICT)
+                .body(e.getMessage());
     }
 }
