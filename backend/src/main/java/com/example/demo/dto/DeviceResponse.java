@@ -14,7 +14,7 @@ public class DeviceResponse {
 
     private Long charId;
 
-    private Integer userId;
+    private Long userId;
 
     public static DeviceResponse from(Device device) {
 
