@@ -10,7 +10,7 @@ const unsigned long SHAKE_WINDOW = 1000;
 
 // 만보기 임계치
 const float STEP_PEAK_THRESHOLD = 1.05;
-const float STEP_VALLEY_THRESHOLD = 0.85;
+const float STEP_VALLEY_THRESHOLD = 0.93;
 const unsigned long MIN_STEP_INTERVAL = 180;
 
 enum StepState { WAITING_FOR_PEAK, WAITING_FOR_VALLEY };
@@ -148,14 +148,14 @@ MotionResult updateMotion() {
     }
 
     // 1. 흔들기 감지
-    if (mag > 1.8 && totalGyroSpeed > 130.0) {
+    if (mag > 2.3 && totalGyroSpeed > 250.0) {
       if (now - lastShakeActionTime > 120) {
         shakeDirectionFlips++;
         lastShakeActionTime = now;
       }
     }
 
-    if (shakeDirectionFlips >= 2) {
+    if (shakeDirectionFlips >= 3) {
       res.isShaken = true;
       shakeDirectionFlips = 0;
     }

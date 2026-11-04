@@ -128,6 +128,7 @@ void triggerVibration(VibePatternState pattern) {
   currentVibeState = pattern;
   vibeStartTime = millis();
   vibeStep = 0;
+  digitalWrite(VIBE_PIN, HIGH);   // 루프가 막혀 있어도 바로 진동 시작
 }
 
 void stopLedEffect() {

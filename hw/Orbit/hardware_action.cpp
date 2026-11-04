@@ -82,17 +82,15 @@ void applyHardwareAction(const String& led, const String& oled, const String& vi
   Serial.printf("\n[Apply] Stage:%d | LED:%s | OLED:%s | VIBE:%s\n",
                 stage, led.c_str(), oled.c_str(), vibe.c_str());
 
-  // 1. Stage (변경될 때만 연출)
-  if (stage >= 1 && stage <= 4) {
-    setStage(stage, true);
-  }
-
-  // 2. LED 일시 연출 (끝나면 Stage 대표색 숨쉬기로 복귀)
-  if (led.length() > 0)  applyLed(normalizeKey(led));
-
-  // 3. 진동
-  if (vibe.length() > 0) applyVibe(normalizeKey(vibe));
-
-  // 4. OLED 표정
+    // 1. OLED 표정
   if (oled.length() > 0) applyOled(normalizeKey(oled));
+
+  // 2. Stage
+  if (stage >= 1 && stage <= 4) setStage(stage, true);
+
+  // 3. LED
+  if (led.length() > 0) applyLed(normalizeKey(led));
+
+  // 4. 진동 (시작 시각이 정확하도록 마지막에)
+  if (vibe.length() > 0) applyVibe(normalizeKey(vibe));
 }

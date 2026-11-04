@@ -22,9 +22,7 @@ String buildEventPayload(const char* event, int stepCount) {
 #if STATUS_PAYLOAD_JSON
   return buildEventJson(event, stepCount);
 #else
-  // 백엔드 현재 처리 문자열: TOUCHED, FUEL_UP, LOVE_UP, happy, sad, angry, calm
-  if (strcmp(event, "TOUCH_LONG") == 0) return String("TOUCHED");
-  return String("");   // SHAKE, STEP_TICK은 미지원 -> 발행 생략
+  return String(event);   // TOUCH_LONG, SHAKE, STEP_TICK 이름 그대로 발행
 #endif
 }
 
