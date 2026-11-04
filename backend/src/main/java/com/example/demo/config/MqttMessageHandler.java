@@ -7,10 +7,11 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.integration.annotation.ServiceActivator;
 import org.springframework.messaging.Message;
 import org.springframework.stereotype.Component;
+import com.example.demo.service.DeviceStepService;
 
 @Component
 public class MqttMessageHandler {
-
+    private final DeviceStepService deviceStepService;
     private final CharacterService characterService;
     private final DeviceService deviceService;
     private final ObjectMapper objectMapper;
@@ -18,11 +19,13 @@ public class MqttMessageHandler {
     public MqttMessageHandler(
             CharacterService characterService,
             DeviceService deviceService,
-            ObjectMapper objectMapper
+            ObjectMapper objectMapper,
+            DeviceStepService deviceStepService
     ) {
         this.characterService = characterService;
         this.deviceService = deviceService;
         this.objectMapper = objectMapper;
+        this.deviceStepService = deviceStepService;
     }
 
     @ServiceActivator(inputChannel = "mqttInputChannel")
@@ -118,6 +121,17 @@ public class MqttMessageHandler {
                 System.out.println(
                         "uptime : " + uptime
                 );
+
+                // HW 누적 걸음 수를 DB에 저장
+                if (steps != null && "status".equals(parts[2])) {
+
+                    deviceStepService.updateSteps(deviceId, steps);
+
+                    System.out.println(
+                            "[걸음 수 DB 저장 완료] "
+                                    + deviceId + " : " + steps
+                    );
+                }
 
                 /*
                  * 현재는 연동 확인용으로
