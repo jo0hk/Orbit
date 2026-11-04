@@ -25,6 +25,8 @@ static unsigned long lastDizzyTime = 0;
 static unsigned long bootEffectEndTime = 0;
 static bool wasTouching = false;
 static int pendingSteps = 0;
+static bool wasMqttConnected = false;
+static unsigned long lastStatusPublish = 0;
 
 // 이벤트 발행 (payload 형식은 config.h의 STATUS_PAYLOAD_JSON에 따름, 미지원 이벤트는 생략)
 static void sendEvent(const char* event, int stepCount) {
@@ -34,6 +36,11 @@ static void sendEvent(const char* event, int stepCount) {
     return;
   }
   publishMQTT(payload);
+}
+
+// HW 상태 JSON 발행 (stage, steps, mqtt, uptime) - 백엔드가 steps/stage/uptime을 읽음
+static void publishStatus(int steps) {
+  publishMQTT(buildStatusJson(getCurrentStage(), steps, isMQTTConnected()));
 }
 
 // 하드웨어 제어 객체 (OrbitSleep.cpp에서 extern 참조)
@@ -104,6 +111,16 @@ void loop() {
 
   // 2. 센서 이벤트 감지 및 슬립 타이머 갱신
   RobotEvent event = updateEventDetector(lastActivityTime);
+  
+  // 상태 JSON: MQTT 접속 직후 1회 + 주기 발행
+  #if STATUS_HEARTBEAT_ENABLED
+    bool mqttNow = isMQTTConnected();
+    if (mqttNow && (!wasMqttConnected || now - lastStatusPublish >= STATUS_HEARTBEAT_MS)) {
+      publishStatus(event.currentSteps);
+      lastStatusPublish = now;
+    }
+    wasMqttConnected = mqttNow;
+  #endif
 
   // 부팅 숨쉬기 연출 종료 (터치 중이면 터치 연출 유지)
   if (bootEffectEndTime != 0 && now >= bootEffectEndTime) {
