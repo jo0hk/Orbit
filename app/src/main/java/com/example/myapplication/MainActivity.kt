@@ -1,5 +1,7 @@
 package com.example.myapplication
 
+
+
 import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Build
@@ -44,7 +46,9 @@ import retrofit2.http.GET
 import retrofit2.http.Path
 import kotlin.random.Random
 import com.google.android.gms.location.LocationServices
-
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.MultipartBody
+import okhttp3.RequestBody.Companion.toRequestBody
 // ── 데이터 클래스 ──────────────────────────────────────────────────────────────
 
 data class MoodResponse(val mood: String)
@@ -65,7 +69,7 @@ data class Mission(
 // ── Retrofit ──────────────────────────────────────────────────────────────────
 
 interface OrbitApiService {
-    @GET("mood")
+    @GET("api/mood")
     suspend fun getCurrentMood(): MoodResponse
 
     @GET("api/conversations/{userId}")
@@ -75,7 +79,7 @@ interface OrbitApiService {
 object RetrofitClient {
     val apiService: OrbitApiService by lazy {
         Retrofit.Builder()
-            .baseUrl("https://example.com/")
+            .baseUrl("http://10.173.45.59:8080/")
             .addConverterFactory(GsonConverterFactory.create())
             .build()
             .create(OrbitApiService::class.java)
@@ -171,13 +175,41 @@ fun SplashScreen(onFinished: () -> Unit) {
 }
 @Composable
 fun OrbitMainScreen() {
+
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
 
+    // 기본 상태
     var currentMood by remember { mutableStateOf("calm") }
     var fuelLevel by remember { mutableFloatStateOf(0.15f) }
     var inputText by remember { mutableStateOf("") }
     var orbitResponse by remember { mutableStateOf("") }
+
+    // 미션 상태
+    var currentMissionIndex by remember { mutableIntStateOf(0) }
+    val currentMission = missionList.getOrNull(currentMissionIndex)
+
+    // 팝업 상태
+    var showMissionComplete by remember { mutableStateOf(false) }
+    var showCrisisPopup by remember { mutableStateOf(false) }
+    var showEndingPopup by remember { mutableStateOf(false) }
+
+    // 연료 애니메이션
+    val animatedFuel by animateFloatAsState(
+        targetValue = fuelLevel,
+        animationSpec = tween(durationMillis = 1000),
+        label = "fuel"
+    )
+
+    val userId = 1L // TODO: 나중에 저장된 userId로 교체
+    val missionId = currentMissionIndex + 1 // TODO: 백엔드 todayMission.missionId로 교체
+
+    // AI 서버 응답이 오면 이 함수가 팝업/대사를 제어
+    fun handleAiResponse(res: AiResponse) {
+        res.reply?.let { orbitResponse = it }
+        if (res.crisisDetected == true) showCrisisPopup = true
+        if (res.missionSuccess == true) showMissionComplete = true
+    }
     // GPS 이동거리 측정
     var totalDistance by remember { mutableFloatStateOf(0f) }
     var lastLocation by remember { mutableStateOf<android.location.Location?>(null) }
@@ -197,8 +229,16 @@ fun OrbitMainScreen() {
                             totalDistance += distance
                             // 100m 달성 시 AI 서버로 전송 (지금은 임시로 미션 성공 팝업)
                             if (totalDistance >= 100f) {
-                                showMissionComplete = true
-                                totalDistance = 0f // 초기화
+                                val sent = totalDistance
+                                totalDistance = 0f // 중복 전송 방지를 위해 먼저 초기화
+                                coroutineScope.launch {
+                                    try {
+                                        val res = AiClient.api.sendGps(GpsRequest(userId, sent))
+                                        handleAiResponse(res)
+                                    } catch (e: Exception) {
+                                        // 전송 실패 시 무시 (다음 100m 때 다시 시도)
+                                    }
+                                }
                             }
                         }
                         lastLocation = newLocation
@@ -213,30 +253,26 @@ fun OrbitMainScreen() {
         }
     }
 
-    // 미션 상태
-    var currentMissionIndex by remember { mutableIntStateOf(0) }
-    val currentMission = missionList.getOrNull(currentMissionIndex)
-
-    // 팝업 상태
-    var showMissionComplete by remember { mutableStateOf(false) }
-    var showMissionFail by remember { mutableStateOf(false) }
-    var showCrisisPopup by remember { mutableStateOf(false) }
-    var showEndingPopup by remember { mutableStateOf(false) }
-
-    // 연료 애니메이션
-    val animatedFuel by animateFloatAsState(
-        targetValue = fuelLevel,
-        animationSpec = tween(durationMillis = 1000),
-        label = "fuel"
-    )
-
     // 카메라 런처
     val cameraLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.TakePicturePreview()
     ) { bitmap ->
         if (bitmap != null) {
-            // TODO: AI 서버로 사진 전송
-            Toast.makeText(context, "사진 촬영 완료! AI 서버 연동 후 분석 예정", Toast.LENGTH_SHORT).show()
+            coroutineScope.launch {
+                try {
+                    val stream = java.io.ByteArrayOutputStream()
+                    bitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, 85, stream)
+                    val imageBody = stream.toByteArray().toRequestBody("image/jpeg".toMediaType())
+                    val imagePart = MultipartBody.Part.createFormData("image", "photo.jpg", imageBody)
+                    val userIdBody = userId.toString().toRequestBody("text/plain".toMediaType())
+                    val missionIdBody = missionId.toString().toRequestBody("text/plain".toMediaType())
+
+                    val res = AiClient.api.sendPhoto(imagePart, userIdBody, missionIdBody)
+                    handleAiResponse(res)
+                } catch (e: Exception) {
+                    Toast.makeText(context, "사진 전송 실패", Toast.LENGTH_SHORT).show()
+                }
+            }
         }
     }
 
@@ -244,8 +280,11 @@ fun OrbitMainScreen() {
         while (true) {
             try {
                 val response = RetrofitClient.apiService.getCurrentMood()
+                android.util.Log.d("ORBIT_MOOD", "받은 mood = '${response.mood}'")
                 currentMood = response.mood
-            } catch (e: Exception) { }
+            } catch (e: Exception) {
+                android.util.Log.e("ORBIT_MOOD", "실패: ${e.message}")
+            }
             delay(1000L)
         }
     }
@@ -325,50 +364,6 @@ fun OrbitMainScreen() {
                         shape = RoundedCornerShape(12.dp)
                     ) {
                         Text("확인", color = Color.Black, fontWeight = FontWeight.Bold)
-                    }
-                }
-            }
-        }
-    }
-
-    // ── MISSION FAIL 팝업 ─────────────────────────────────────────────────────
-    if (showMissionFail) {
-        Dialog(onDismissRequest = {}) {
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(20.dp),
-                colors = CardDefaults.cardColors(containerColor = Color(0xFF0E1422)),
-                border = BorderStroke(1.dp, Color(0xFF8A97AC))
-            ) {
-                Column(
-                    modifier = Modifier.padding(28.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Text(
-                        "✦ MISSION FAIL ✦",
-                        color = Color(0xFF8A97AC),
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold,
-                        fontFamily = FontFamily.Monospace,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Text(
-                        "대장님, 이번 임무는 완수하지 못했습니다.\n다음 기회에 다시 도전해보세요.",
-                        color = Color(0xFFE6EDF6),
-                        fontSize = 13.sp,
-                        textAlign = TextAlign.Center,
-                        lineHeight = 20.sp,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    Spacer(modifier = Modifier.height(24.dp))
-                    Button(
-                        onClick = { showMissionFail = false },
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2A3A55)),
-                        shape = RoundedCornerShape(12.dp)
-                    ) {
-                        Text("확인", color = Color.White, fontWeight = FontWeight.Bold)
                     }
                 }
             }
@@ -695,14 +690,6 @@ fun OrbitMainScreen() {
                     Text("미션성공 테스트", color = Color(0xFFFFD27A), fontSize = 10.sp)
                 }
                 OutlinedButton(
-                    onClick = { showMissionFail = true },
-                    border = BorderStroke(1.dp, Color(0xFF8A97AC)),
-                    shape = RoundedCornerShape(8.dp),
-                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
-                ) {
-                    Text("미션실패 테스트", color = Color(0xFF8A97AC), fontSize = 10.sp)
-                }
-                OutlinedButton(
                     onClick = { showCrisisPopup = true },
                     border = BorderStroke(1.dp, Color(0xFFFF6B5E)),
                     shape = RoundedCornerShape(8.dp),
@@ -762,10 +749,11 @@ fun OrbitMainScreen() {
                             onClick = {
                                 if (inputText.isNotBlank()) {
                                     coroutineScope.launch {
+                                        val message = inputText
+                                        inputText = ""
                                         try {
-                                            // TODO: AI 서버 연동 시 여기서 inputText를 AI 서버로 전송
-                                            orbitResponse = "AI 서버 연동 후 응답이 여기 표시됩니다."
-                                            inputText = ""
+                                            val res = AiClient.api.sendChat(ChatRequest(userId, message))
+                                            handleAiResponse(res)
                                         } catch (e: Exception) {
                                             orbitResponse = "교신 실패. 다시 시도하세요."
                                         }

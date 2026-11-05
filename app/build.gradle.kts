@@ -70,4 +70,6 @@ dependencies {
     ksp("androidx.room:room-compiler:$roomVersion")
 
     implementation("com.google.android.gms:play-services-location:21.2.0")
+
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
 }
