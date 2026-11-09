@@ -1,8 +1,10 @@
 # 인터페이스 정의서 v1.1 (2학기 1주차 · 10-01 개정)
 
-> 작성: AI/PM · 2026-09-21 · **개정 2026-10-01**
+> 작성: AI/PM · 2026-09-21 · **개정 2026-10-01** · **개정 2026-11-09**
 > 대상: HW · 앱 · 백엔드 · AI 전 파트
 > 근거: 2026-09-17 회의 결정(노션 「회의내용 정리 / 20260917」), 백엔드 `develop`(`e036b37`), HW `hw/Orbit/Orbit.ino`, `ai/app/schemas.py`
+
+> **11-09 개정 사항.** AI 서버의 백엔드 연동을 구현했습니다(1절). 음성 엔드포인트를 `device_id` 기준으로 바꾸고, 앱 텍스트 엔드포인트를 추가했습니다. 백엔드 Context API가 아직 없어 기존 API를 조합해 맥락을 조회합니다. 응답에 `mission_result`, `request_id`, `latency.context_ms`를 추가했습니다.
 
 > **10-01 개정 사항.** v1(09-21)은 백엔드 코드(`0fad53a`)만 보고 "백엔드가 AI 서버를 호출하고 응답을 저장한다"는 구조를 제안했으나, 09-17 회의에서 이미 다른 구조로 정했습니다. 회의 결정과 그 뒤 백엔드·HW 구현을 기준으로 전 절을 고쳤습니다. v1에서 제안했다가 바뀐 내용은 각 절 끝의 "v1 대비"에 남겼습니다.
 
@@ -55,11 +57,26 @@ POST /api/v1/interact/voice        (multipart/form-data)
   audio      : 16kHz mono WAV (PCM)   필수
   device_id  : string                 필수. 키링 MAC 기반 (예: ORBIT-001)
   lux        : int | null             조도
+  request_id : string | null          중복 저장 방지용. 없으면 AI 서버가 발급 (11-09 추가)
 ```
 
 사용자·단계·날씨·최근 대화·오늘 미션은 **AI 서버가 `device_id`로 백엔드 Context API에서 조회**합니다. 키링은 이 정보를 모릅니다.
 
-> 현재 `ai/app/api/v1/interact.py`는 `session_id`, `turn_no`, `lux`, `weather`, `mission_id`를 받고 `device_id`가 없습니다. 코드 수정 필요.
+> **11-09 구현.** `ai/app/api/v1/interact.py`가 위 필드를 받습니다. 키링 쪽 녹음·HTTP 전송은 아직 HW 코드에 없습니다.
+
+#### Context API 대체 (11-09)
+
+백엔드에 Context API가 없어 AI 서버(`ai/app/core/backend_client.py`)가 기존 API를 조합합니다. Context API가 생기면 `fetch_context()` 안쪽만 바꿉니다.
+
+| 필요한 것 | 지금 쓰는 백엔드 API | 비고 |
+| --- | --- | --- |
+| `device_id` → 사용자·캐릭터 | `GET /api/devices/{deviceId}` | `userId`, `charId` |
+| 현재 단계 | `GET /api/character/{charId}` | 텍스트 요청은 캐릭터를 `userId`로 찾는 API가 없어 오늘 미션의 단계를 씀 |
+| 오늘 미션 | `GET /api/missions/current?userId=` | 404면 `POST /api/missions/today/assign?userId=` (이미 배정된 것이 있으면 그대로 돌려줌). **배정 주체는 백엔드와 확인 필요** |
+| 최근 대화 | `GET /api/conversations/{userId}/recent?limit=` | 프롬프트 주입 규칙이 정해지기 전까지 조회하지 않음 |
+| 날씨 범주 | 없음 | 2단계 판정은 날씨 표현만 있으면 성공(`WEATHER_API_DOWN`) |
+
+백엔드 호출이 실패하거나 3초(`BACKEND_TIMEOUT_S`)를 넘기면 맥락 없이 응답합니다. 이때 미션 판정과 대화 저장은 하지 않습니다.
 
 ### 요청 스펙 — 앱 텍스트 (신규)
 
@@ -68,7 +85,9 @@ POST /api/v1/interact/text         (application/json)
   { "user_id": 1, "text": "오늘 좀 피곤해", "request_id": "..." }
 ```
 
-09-17 회의에서 앱의 음성 교신 팝업을 텍스트 교신으로 전환하고 AI 서버를 거치기로 했습니다. 1단계 미션(기분 텍스트)이 이 경로로 들어옵니다. 미구현이며 위 필드는 제안입니다. 앱과 확정합니다.
+09-17 회의에서 앱의 음성 교신 팝업을 텍스트 교신으로 전환하고 AI 서버를 거치기로 했습니다. 1단계 미션(기분 텍스트)이 이 경로로 들어옵니다. 위 필드는 제안입니다. 앱과 확정합니다.
+
+> **11-09 구현.** 위 필드로 구현했습니다. 응답 형식은 음성과 같고, 음성 합성을 하지 않아 `audio_url`은 `null`입니다. 감정 모델이 음성 특징을 함께 받도록 학습되어 텍스트만으로는 돌리지 않습니다. `user_emotion`은 `neutral`이고, 긍정 표현이 있으면 `emotion`이 `happy`가 됩니다(2절 긍정 보정).
 
 ### 요청 스펙 — 산책 (백엔드 → AI)
 
@@ -88,14 +107,18 @@ POST /api/v1/interact/text         (application/json)
   "user_emotion": "sad",
   "user_emotion_confidence": 0.87,
   "emotion": "sad",
-  "latency": { "stt_ms": 0, "emotion_ms": 0, "llm_ms": 0, "tts_ms": 0, "total_ms": 0 },
+  "latency": { "stt_ms": 0, "context_ms": 0, "emotion_ms": 0, "llm_ms": 0, "tts_ms": 0, "total_ms": 0 },
   "llm_retry_count": 0,
   "fallback_triggered": false,
-  "high_risk_detected": false
+  "high_risk_detected": false,
+  "mission_result": "none",
+  "request_id": "9f1c..."
 }
 ```
 
 - `user_emotion` 은 AI 모델의 원래 라벨, `emotion` 은 2절 규칙으로 바꾼 공통값입니다. 앱·백엔드는 `emotion` 만 쓰면 됩니다.
+- `mission_result` (11-09 추가): 이번 턴의 미션 판정. `success` / `retry`(조건 미달, 같은 날 다시 가능) / `deferred`(보류) / `none`(미션과 무관). 앱은 `success`일 때 미션 성공 화면을 띄우면 됩니다. 미션 반응 턴의 `led`·`vibe`·`oled_expression`은 LLM 값이 아니라 서버가 정한 신호입니다(`docs/mission-context-injection.md` 1절).
+- `request_id` (11-09 추가): 대화 저장에 쓴 값. 요청에 없으면 AI 서버가 발급합니다.
 - **HW 확인 필요:** 09-17 회의 추천 구조는 `hardware{led, vibe, oled}`로 묶는 형태였고, 현재 응답은 평평한 구조입니다. 결정 요약에 없는 항목이라 HW 파싱 방식에 맞춰 정합니다.
 - **HW 확인 필요:** 응답 오디오는 현재 mp3입니다. 키링이 mp3를 디코딩할 수 없으면 wav(16kHz 모노)로 내려주기로 했으나 HW 확인 결과가 기록되어 있지 않습니다. 위 예시는 wav 기준입니다.
 
