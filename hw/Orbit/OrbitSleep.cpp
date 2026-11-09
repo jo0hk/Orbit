@@ -3,6 +3,9 @@
 #include "OrbitLED.h"
 #include "non_blocking_hw.h"
 #include "mqtt_manager.h"
+#include "status_builder.h"
+#include "stage_manager.h"
+#include "motion.h"
 
 extern OrbitFace face;
 extern OrbitLED orbit;
@@ -46,6 +49,10 @@ void enterOrbitDeepSleep() {
 
   Serial.flush();
 
+  if (isMQTTConnected()) {
+    publishMQTT(buildStatusJson(getCurrentStage(), getTotalSteps(), true));
+    delay(100);   // TCP 송신 여유
+  }
   // MQTT 정상 종료 후 슬립
   shutdownMQTT();
 

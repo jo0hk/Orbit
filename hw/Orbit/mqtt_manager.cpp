@@ -15,6 +15,30 @@ static String pubTopic = "";
 
 static unsigned long lastConnectAttempt = 0;
 static unsigned long retryInterval = MQTT_RETRY_INIT_MS;
+static bool wifiWaitLogged = false;   // "Wi-Fi 미연결" 로그를 끊긴 동안 1회만 출력
+
+static unsigned long wifiLostSince = 0;
+static unsigned long lastWifiKick = 0;
+
+static void maintainWiFi() {
+  unsigned long now = millis();
+  if (WiFi.status() == WL_CONNECTED) {
+    if (wifiLostSince != 0) {
+      Serial.println("[WiFi] 재연결됨 -> MQTT 즉시 재시도");
+      retryInterval = MQTT_RETRY_INIT_MS;
+      lastConnectAttempt = now - retryInterval;
+    }
+    wifiLostSince = 0;
+    return;
+  }
+  if (wifiLostSince == 0) { wifiLostSince = now; lastWifiKick = now; return; }
+  if (now - lastWifiKick >= WIFI_REBEGIN_MS) {
+    lastWifiKick = now;
+    Serial.printf("[WiFi] %lu초째 미연결 -> 재접속 시도\n", (now - wifiLostSince) / 1000);
+    WiFi.disconnect();
+    WiFi.begin(WIFI_SSID, WIFI_PASSWORD);   // 비차단
+  }
+}
 
 static void mqttCallback(char* topic, byte* payload, unsigned int length) {
   String message;
@@ -53,21 +77,35 @@ static void reconnectMQTT() {
   lastConnectAttempt = now;
 
   if (WiFi.status() != WL_CONNECTED) {
-    Serial.println("[MQTT] Wi-Fi 미연결 -> 재연결 대기 중...");
+    if (!wifiWaitLogged) {
+      Serial.println("[MQTT] Wi-Fi 미연결 -> 재연결 대기 중... (Wi-Fi 상태는 [WiFi] 로그 참고)");
+      wifiWaitLogged = true;
+    }
     return;
   }
+  wifiWaitLogged = false;   // 다음 끊김 때 다시 1회 출력
 
   Serial.printf("[MQTT] 서버 접속 시도 (%s:%d)\n", MQTT_SERVER_IP, MQTT_PORT);
 
-#ifdef MQTT_USER
-  bool ok = mqttClient.connect(clientId.c_str(), MQTT_USER, MQTT_PASSWORD);
+#if MQTT_PERSISTENT_SESSION
+  const bool cleanSession = false;   // 브로커가 오프라인 동안 QoS1 메시지를 보관
+  const uint8_t subQos = 1;
 #else
-  bool ok = mqttClient.connect(clientId.c_str());
+  const bool cleanSession = true;    // 기존 동작
+  const uint8_t subQos = 0;
+#endif
+
+#ifdef MQTT_USER
+  bool ok = mqttClient.connect(clientId.c_str(), MQTT_USER, MQTT_PASSWORD,
+                               nullptr, 0, false, nullptr, cleanSession);
+#else
+  bool ok = mqttClient.connect(clientId.c_str(), nullptr, nullptr,
+                               nullptr, 0, false, nullptr, cleanSession);
 #endif
 
   if (ok) {
-    Serial.println("[MQTT] 서버 연결 성공");
-    mqttClient.subscribe(subTopic.c_str());
+    Serial.printf("[MQTT] 서버 연결 성공 (cleanSession=%d, subQoS=%d)\n", cleanSession, subQos);
+    mqttClient.subscribe(subTopic.c_str(), subQos);
     retryInterval = MQTT_RETRY_INIT_MS;
   } else {
     Serial.printf("[MQTT] 연결 실패 (rc=%d) -> %lu초 후 재시도\n", mqttClient.state(), retryInterval / 1000);
@@ -76,6 +114,7 @@ static void reconnectMQTT() {
 }
 
 void updateMQTTManager() {
+  maintainWiFi();
   if (!mqttClient.connected()) {
     reconnectMQTT();
   } else {

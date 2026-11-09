@@ -12,6 +12,8 @@ struct MotionResult {
 
 void setupMotion();
 MotionResult updateMotion();
+
+int getTotalSteps();
 void resetSteps();
 
 #endif

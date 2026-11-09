@@ -19,6 +19,14 @@ void setupNonBlockingHW(OrbitLED* ledPtr) {
   digitalWrite(VIBE_PIN, LOW);
 }
 
+// 0~255 색상환 위치 -> RGB
+static void hueToRgb(uint8_t pos, uint8_t& r, uint8_t& g, uint8_t& b) {
+  pos = 255 - pos;
+  if (pos < 85)       { r = 255 - pos * 3; g = 0;             b = pos * 3; }
+  else if (pos < 170) { pos -= 85;  r = 0;       g = pos * 3;       b = 255 - pos * 3; }
+  else                { pos -= 170; r = pos * 3; g = 255 - pos * 3; b = 0; }
+}
+
 static void updateLED() {
   if (globalLed == nullptr) return;
 
@@ -30,7 +38,7 @@ static void updateLED() {
   lastLedUpdate = now;
 
   // 1. 평상시 (LED_IDLE): 현재 Stage 대표색 숨쉬기
-  if (currentLedState != LED_BREATH && currentLedState != LED_FADE) {
+  if (currentLedState == LED_IDLE) {
     StageColor curColor = getCurrentStageColor();
     unsigned long cycle = now % 3000;
     uint8_t baseBrightness = (cycle < 1500) ? map(cycle, 0, 1500, 10, 40) 
@@ -63,6 +71,16 @@ static void updateLED() {
     }
     uint8_t brightness = map(elapsed, 0, ledEffectDuration, 10, 150);
     globalLed->showColor(effectR, effectG, effectB, brightness);
+  }
+  else if (currentLedState == LED_RAINBOW) {
+    if (elapsed >= ledEffectDuration) {   // 끝나면 Stage 색 숨쉬기로 복귀
+      currentLedState = LED_IDLE;
+      return;
+    }
+    uint8_t pos = (uint8_t)((elapsed * 256UL) / ledEffectDuration);   // 지속시간 동안 1바퀴
+    uint8_t r, g, b;
+    hueToRgb(pos, r, g, b);
+    globalLed->showColor(r, g, b, 120);
   }
 }
 
@@ -122,6 +140,12 @@ void triggerFadeEffect(uint8_t r, uint8_t g, uint8_t b, uint16_t duration_ms) {
   effectR = r; effectG = g; effectB = b;
   ledEffectStartTime = millis();
   ledEffectDuration = duration_ms;
+}
+
+void triggerRainbowEffect(uint16_t duration_ms) {
+  currentLedState = LED_RAINBOW;
+  ledEffectStartTime = millis();
+  ledEffectDuration = (duration_ms > 0) ? duration_ms : 2000;   // 0으로 나누기 방지
 }
 
 void triggerVibration(VibePatternState pattern) {
