@@ -28,6 +28,8 @@ class Settings(BaseSettings):
 
     # 백엔드(Spring Boot)
     backend_base_url: str = "http://localhost:8080"
+    # 맥락 조회가 응답 경로에 있으므로 짧게 둡니다. 넘기면 맥락 없이 응답합니다.
+    backend_timeout_s: float = 3.0
 
 
 @lru_cache

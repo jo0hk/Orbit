@@ -148,8 +148,12 @@ class EnvContext(BaseModel):
     weather: str | None = Field(None, description="예: 화창함, 맑음, 비")
     location_coarse: str | None = Field(None, description="비식별 위치. 좌표 원본 금지")
     distance_m: int | None = Field(None, description="7주차 GPS 누적 이동 거리")
+    # 아래 미션 필드는 요청으로 받지 않고 AI 서버가 채웁니다.
+    # 백엔드에서 받은 오늘 미션 + AI 서버의 판정 결과 (docs/mission-context-injection.md)
     mission_id: str | None = None
+    mission_type: str | None = Field(None, description="app.missions.MissionType 값")
     mission_result: MissionResult = MissionResult.NONE
+    mission_reason: str | None = Field(None, description="app.missions.ReasonCode 값")
 
 
 # ─────────────────────────────────────────────────────────────
@@ -164,6 +168,7 @@ class LatencyBreakdown(BaseModel):
     """
 
     stt_ms: int = 0
+    context_ms: int = 0  # 백엔드 맥락 조회
     emotion_ms: int = 0
     llm_ms: int = 0
     tts_ms: int = 0
@@ -205,3 +210,18 @@ class InteractResponse(BaseModel):
     # ⚠️ 통계 목적으로만 씁니다. 특정 사용자를 지목하거나 외부에 알리지 않습니다.
     #    docs/high-risk-utterance-policy.md 참조
     high_risk_detected: bool = False
+
+    # --- 미션·추적 ---
+    # 이번 턴의 미션 판정. 앱이 미션 성공 화면을 띄울 때 씁니다.
+    # success / retry / deferred / none. "실패"는 없습니다.
+    mission_result: MissionResult = MissionResult.NONE
+    # 대화 저장에 쓴 requestId. 요청에 없으면 서버가 발급합니다.
+    request_id: str | None = None
+
+
+class TextInteractRequest(BaseModel):
+    """앱 텍스트 교신 요청 (docs/interface-spec-v1.md 1절)."""
+
+    user_id: int
+    text: str = Field(..., min_length=1, max_length=500)
+    request_id: str | None = None
