@@ -7,11 +7,15 @@
 // --- MQTT 브로커 설정 ---
 #define MQTT_SERVER_IP        "mqtt_ip"
 #define MQTT_PORT             1883
+
 // 계정이 필요하면 아래 두 줄 주석 해제
 // #define MQTT_USER          "user"
 // #define MQTT_PASSWORD      "password"
 #define MQTT_RETRY_INIT_MS    2000
 #define MQTT_RETRY_MAX_MS     60000
+
+#define WIFI_REBEGIN_MS          15000   // Wi-Fi 이만큼 끊기면 직접 재접속
+#define MQTT_PERSISTENT_SESSION  0       // 1: cleanSession=false + QoS1 구독 (⑥)
 
 // --- 디바이스 설정 ---
 // 연동 테스트용 고정 ID. 주석 처리하면 MAC 주소를 deviceId로 사용
@@ -23,9 +27,7 @@
 #define SHAKE_STILL_MS        3000
 
 // status payload 형식
-//  1: JSON  {"event":"TOUCH_LONG","stepCount":150}   (백엔드가 JSON 파싱을 지원할 때)
-//  0: 문자열 호환 모드  TOUCH_LONG -> "TOUCHED"       (백엔드가 문자열만 처리하는 현재 상태)
-//     호환 모드에서는 백엔드 미지원 이벤트(SHAKE, STEP_TICK)는 발행하지 않음
+//  0: 문자열 모드  TOUCH_LONG / SHAKE / STEP_TICK 이름 그대로 발행 (현재 백엔드 형식)
 #define STATUS_PAYLOAD_JSON   0
 #define STATUS_HEARTBEAT_ENABLED   1
 #define STATUS_HEARTBEAT_MS        10000

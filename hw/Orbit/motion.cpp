@@ -186,6 +186,6 @@ MotionResult updateMotion() {
   return res;
 }
 
-void resetSteps() {
-  totalStepCount = 0;
-}
+int getTotalSteps() { return totalStepCount; }
+
+void resetSteps() { totalStepCount = 0; }

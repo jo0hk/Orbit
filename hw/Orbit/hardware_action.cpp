@@ -49,7 +49,7 @@ static void fadeStageColor(int stageIdx, uint16_t ms) {
 }
 
 static void applyLed(const String& key) {
-  if (key == "rainbow")                       triggerFadeEffect(255, 100, 255, 1200);
+  if (key == "rainbow")                       triggerRainbowEffect(4000);   // 4초 동안 색상환 1바퀴
   else if (key == "purple")                   triggerFadeEffect(180, 0, 255, 1200);
   else if (key == "blue" || key == "dim_blue") triggerFadeEffect(0, 50, 150, 1000);
   else if (key == "yellow")                   triggerFadeEffect(255, 200, 0, 1500);
@@ -57,10 +57,12 @@ static void applyLed(const String& key) {
   else if (key == "orange")                   fadeStageColor(2, 1200);
   else if (key == "lime")                     fadeStageColor(3, 1200);
   else if (key == "green")                    fadeStageColor(4, 1200);
+  else if (key == "skyblue")                  fadeStageColor(0, 1200);
   else Serial.printf("[LOG_WARN] 미지원 LED 값: %s\n", key.c_str());
 }
 
 static void applyVibe(const String& key) {
+  if (key == "none") return;   // AI 고위험 대응: 진동 없음 (정상 동작)
   if (key == "short" || key == "short_pulse")            triggerVibration(VIBE_SHORT);
   else if (key == "long" || key == "soft_continuous")    triggerVibration(VIBE_LONG);
   else if (key == "double" || key == "strong_double")    triggerVibration(VIBE_DOUBLE);

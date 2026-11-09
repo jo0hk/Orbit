@@ -12,6 +12,7 @@
 #include "stage_manager.h"
 #include "hardware_action.h"
 #include "json_pipeline.h"
+#include "time_sync.h"
 
 // 하드웨어 핀 정의 (진동 모터 핀은 non_blocking_hw.h의 VIBE_PIN 사용)
 #define LED_PIN       18
@@ -78,6 +79,7 @@ void setup() {
 
   // 3. Wi-Fi 및 MQTT 설정 (대기 중에도 LED/진동 갱신)
   WiFi.mode(WIFI_STA);
+  setupTimeSync();
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
 
   unsigned long wifiStart = millis();
@@ -108,7 +110,8 @@ void loop() {
   updateHardwareAction();
   processJsonPipeline();
   updateMQTTManager();
-
+  updateDailyStepReset();
+  
   // 2. 센서 이벤트 감지 및 슬립 타이머 갱신
   RobotEvent event = updateEventDetector(lastActivityTime);
   

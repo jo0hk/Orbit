@@ -9,25 +9,33 @@ void setupJsonPipeline() {
 bool parseAndExecuteJson(const String& jsonPayload) {
   if (jsonPayload.length() == 0) return false;
 
-  // 버퍼 크기를 1024로 확장하여 모든 필드 수신에 충분하도록 설정
   #if ARDUINOJSON_VERSION_MAJOR >= 7
+    JsonDocument filter;
     JsonDocument doc;
   #else
-    StaticJsonDocument<1024> doc;
+    StaticJsonDocument<128> filter;
+    StaticJsonDocument<256> doc;
   #endif
+  // 백엔드 명령 + AI 응답 공통으로 필요한 필드만 남김 (AI 응답의 speech/latency 등으로 메모리 초과 방지)
+  filter["stage"] = true;
+  filter["led"] = true;
+  filter["vibe"] = true;
+  filter["oled"] = true;
+  filter["oled_expression"] = true;
 
-  DeserializationError error = deserializeJson(doc, jsonPayload);
-
+  DeserializationError error =
+      deserializeJson(doc, jsonPayload, DeserializationOption::Filter(filter));
   if (error) {
-    Serial.printf("[JsonPipeline ❌] JSON 파싱 실패: %s | 입력값: %s\n", error.c_str(), jsonPayload.c_str());
+    Serial.printf("[JsonPipeline] JSON 파싱 실패: %s | 입력값: %s\n", error.c_str(), jsonPayload.c_str());
     return false;
   }
 
-  // 안전한 필드 읽기
-  int stage   = doc["stage"].is<int>() ? doc["stage"].as<int>() : 0;
-  String oled = doc["oled"].is<const char*>() ? doc["oled"].as<String>() : "";
+  int stage   = doc["stage"].is<int>() ? doc["stage"].as<int>() : 0;   // null/없음 -> 0 (무시됨)
   String led  = doc["led"].is<const char*>()  ? doc["led"].as<String>()  : "";
   String vibe = doc["vibe"].is<const char*>() ? doc["vibe"].as<String>() : "";
+  String oled = "";
+  if (doc["oled"].is<const char*>())                 oled = doc["oled"].as<String>();             // 백엔드 명령
+  else if (doc["oled_expression"].is<const char*>()) oled = doc["oled_expression"].as<String>();  // AI 응답
 
   // 일괄 적용
   applyHardwareAction(led, oled, vibe, stage);
