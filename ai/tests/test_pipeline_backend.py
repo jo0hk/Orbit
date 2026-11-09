@@ -142,6 +142,19 @@ def test_llm_failure_keeps_emergency_signal_but_reports_judgement():
     assert out.record.mission_turn.judgement.result is MissionResult.SUCCESS
 
 
+def test_tts_failure_still_answers_and_records():
+    """음성 합성(외부 서비스)이 실패해도 대사·신호·기록은 정상이어야 합니다."""
+    fake = FakeBackend(device_routes(FAKE_MISSION))
+    core = make_core(fake)
+    core.tts = FakeTTS(fail=True)
+    out = voice(core)
+
+    assert out.response.audio_url is None
+    assert out.response.speech
+    assert out.response.mission_result is MissionResult.SUCCESS
+    assert out.record.user_id == 3
+
+
 # ─── 앱 텍스트 ───────────────────────────────────────────────
 def test_text_mood_mission_success_without_tts():
     fake = FakeBackend(mood_routes())

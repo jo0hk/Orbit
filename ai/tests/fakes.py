@@ -125,9 +125,12 @@ class FakeLLM:
 
 
 class FakeTTS:
-    def __init__(self):
+    def __init__(self, fail: bool = False):
         self.calls = 0
+        self.fail = fail
 
     async def synthesize(self, text: str, out_path: str, plain: bool = False) -> str:
         self.calls += 1
+        if self.fail:
+            raise RuntimeError("edge-tts 403")
         return out_path

@@ -222,10 +222,16 @@ class OrbitCore:
         if synthesize:
             with _timed(marks, "tts_ms"):
                 out_path = f"{OUTPUT_DIR}/{uuid.uuid4().hex}.mp3"
-                # 고위험 대응은 무전 노이즈 없이 평범한 목소리로 출력합니다.
-                result.audio_url = await self.tts.synthesize(
-                    result.speech, out_path, plain=high_risk
-                )
+                try:
+                    # 고위험 대응은 무전 노이즈 없이 평범한 목소리로 출력합니다.
+                    result.audio_url = await self.tts.synthesize(
+                        result.speech, out_path, plain=high_risk
+                    )
+                except Exception:
+                    # 음성 합성(edge-tts, 외부 서비스)이 실패해도 대사·HW 신호는 내보내고
+                    # 대화도 저장합니다. audio_url 이 null 이면 음성 없이 응답한 것입니다.
+                    logger.warning("TTS 실패. 음성 없이 응답합니다.", exc_info=True)
+                    result.audio_url = None
 
         result.user_text = user_text
         result.stt_confidence = stt_conf
