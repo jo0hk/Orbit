@@ -1,5 +1,6 @@
 package com.example.myapplication
 
+import com.google.gson.annotations.SerializedName
 import okhttp3.MultipartBody
 import okhttp3.OkHttpClient
 import okhttp3.RequestBody
@@ -11,45 +12,57 @@ import retrofit2.http.POST
 import retrofit2.http.Part
 import java.util.concurrent.TimeUnit
 
-// ── 요청/응답 형식 (AI 담당과 확정되면 여기만 수정) ──────────────────────────
+// ── 텍스트 교신 요청/응답 ─────────────────────────────────────────────────────
 
-data class ChatRequest(val userId: Long, val message: String)
-
-data class GpsRequest(val userId: Long, val distanceMeters: Float)
-
-// 텍스트/사진/GPS 응답을 하나로 처리 (없는 필드는 null)
-data class AiResponse(
-    val reply: String? = null,
-    val missionSuccess: Boolean? = null,
-    val crisisDetected: Boolean? = null,
-    val reason: String? = null
+data class ChatRequest(
+    @SerializedName("user_id") val userId: Long,
+    @SerializedName("text") val text: String,
+    @SerializedName("request_id") val requestId: String = java.util.UUID.randomUUID().toString()
 )
 
-// ── 엔드포인트 (AI 담당에게 받은 주소로 교체) ────────────────────────────────
+// 텍스트/사진 공통 응답 (없는 필드는 null)
+data class AiResponse(
+    @SerializedName("speech") val speech: String? = null,
+    @SerializedName("mission_result") val missionResult: String? = null, // success / retry / deferred / none
+    @SerializedName("high_risk_detected") val highRiskDetected: Boolean? = null,
+    @SerializedName("emotion") val emotion: String? = null,
+    @SerializedName("next_step") val nextStep: String? = null            // 사진 전용: "alighting" 또는 null
+) {
+    val missionSuccess: Boolean get() = missionResult == "success"
+}
+
+// ── API 정의 ─────────────────────────────────────────────────────────────────
 
 interface AiApiService {
-    @POST("ai/chat")
+
+    // 텍스트 교신 (1단계 기분 텍스트 미션 포함)
+    @POST("api/v1/interact/text")
     suspend fun sendChat(@Body request: ChatRequest): AiResponse
 
+    // 사진 판정 (3단계 랜드마크 / 4단계 승차·하차)
+    // 3단계: image, user_id, captured_at 만 보냄 (step, lat, lng 는 null)
+    // 4단계: step("boarding"/"alighting"), lat, lng 도 함께 보냄
     @Multipart
-    @POST("ai/photo")
+    @POST("api/v1/interact/photo")
     suspend fun sendPhoto(
         @Part image: MultipartBody.Part,
-        @Part("userId") userId: RequestBody,
-        @Part("missionId") missionId: RequestBody
+        @Part("user_id") userId: RequestBody,
+        @Part("captured_at") capturedAt: RequestBody,
+        @Part("request_id") requestId: RequestBody,
+        @Part("step") step: RequestBody? = null,
+        @Part("lat") lat: RequestBody? = null,
+        @Part("lng") lng: RequestBody? = null
     ): AiResponse
-
-    @POST("ai/gps")
-    suspend fun sendGps(@Body request: GpsRequest): AiResponse
 }
 
 object AiClient {
-    // TODO: AI 서버 주소로 교체 (반드시 맨 끝에 / 붙이기)
+    // TODO: AI 담당이 준 터널 주소로 교체 (반드시 맨 끝에 / 붙이기)
     private const val BASE_URL = "https://example.com/"
 
     private val okHttp = OkHttpClient.Builder()
         .connectTimeout(30, TimeUnit.SECONDS)
-        .readTimeout(30, TimeUnit.SECONDS) // AI 응답이 느릴 수 있어서 넉넉히
+        .readTimeout(30, TimeUnit.SECONDS) // 응답이 3~7초 걸려서 넉넉히
+        .writeTimeout(30, TimeUnit.SECONDS)
         .build()
 
     val api: AiApiService by lazy {

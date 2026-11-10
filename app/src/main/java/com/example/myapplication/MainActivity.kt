@@ -45,10 +45,21 @@ import retrofit2.converter.gson.GsonConverterFactory
 import retrofit2.http.GET
 import retrofit2.http.Path
 import kotlin.random.Random
-import com.google.android.gms.location.LocationServices
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.MultipartBody
 import okhttp3.RequestBody.Companion.toRequestBody
+import androidx.core.content.FileProvider
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import java.io.File
+import android.annotation.SuppressLint
+import android.content.Context
+import com.google.android.gms.location.LocationServices
+import com.google.android.gms.location.Priority
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withTimeoutOrNull
+import kotlin.coroutines.resume
+
 // ── 데이터 클래스 ──────────────────────────────────────────────────────────────
 
 data class MoodResponse(val mood: String)
@@ -193,6 +204,9 @@ fun OrbitMainScreen() {
     var showMissionComplete by remember { mutableStateOf(false) }
     var showCrisisPopup by remember { mutableStateOf(false) }
     var showEndingPopup by remember { mutableStateOf(false) }
+    // 4단계 승차/하차 촬영 상태 (TODO: 임시 스위치. 나중에 서버 todayMission.stage로 교체)
+    var isStage4 by remember { mutableStateOf(false) }
+    var photoStep by remember { mutableStateOf("boarding") } // boarding / alighting
 
     // 연료 애니메이션
     val animatedFuel by animateFloatAsState(
@@ -206,71 +220,63 @@ fun OrbitMainScreen() {
 
     // AI 서버 응답이 오면 이 함수가 팝업/대사를 제어
     fun handleAiResponse(res: AiResponse) {
-        res.reply?.let { orbitResponse = it }
-        if (res.crisisDetected == true) showCrisisPopup = true
-        if (res.missionSuccess == true) showMissionComplete = true
-    }
-    // GPS 이동거리 측정
-    var totalDistance by remember { mutableFloatStateOf(0f) }
-    var lastLocation by remember { mutableStateOf<android.location.Location?>(null) }
-    val fusedLocationClient = remember { LocationServices.getFusedLocationProviderClient(context) }
-
-    LaunchedEffect(Unit) {
-        if (ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
-            val locationRequest = com.google.android.gms.location.LocationRequest.Builder(
-                com.google.android.gms.location.Priority.PRIORITY_HIGH_ACCURACY, 5000L
-            ).build()
-
-            val locationCallback = object : com.google.android.gms.location.LocationCallback() {
-                override fun onLocationResult(result: com.google.android.gms.location.LocationResult) {
-                    result.lastLocation?.let { newLocation ->
-                        lastLocation?.let { prev ->
-                            val distance = prev.distanceTo(newLocation)
-                            totalDistance += distance
-                            // 100m 달성 시 AI 서버로 전송 (지금은 임시로 미션 성공 팝업)
-                            if (totalDistance >= 100f) {
-                                val sent = totalDistance
-                                totalDistance = 0f // 중복 전송 방지를 위해 먼저 초기화
-                                coroutineScope.launch {
-                                    try {
-                                        val res = AiClient.api.sendGps(GpsRequest(userId, sent))
-                                        handleAiResponse(res)
-                                    } catch (e: Exception) {
-                                        // 전송 실패 시 무시 (다음 100m 때 다시 시도)
-                                    }
-                                }
-                            }
-                        }
-                        lastLocation = newLocation
-                    }
-                }
-            }
-            fusedLocationClient.requestLocationUpdates(
-                locationRequest,
-                locationCallback,
-                android.os.Looper.getMainLooper()
-            )
-        }
+        res.speech?.let { orbitResponse = it }
+        if (res.highRiskDetected == true) showCrisisPopup = true
+        if (res.missionResult == "success") showMissionComplete = true
+        // retry / deferred / none 은 "실패"가 아니므로 대사만 표시
     }
 
-    // 카메라 런처
+    // 카메라 런처 (원본 화질, 3단계 + 4단계 승차/하차)
+    var photoFile by remember { mutableStateOf<File?>(null) }
     val cameraLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.TakePicturePreview()
-    ) { bitmap ->
-        if (bitmap != null) {
+        contract = ActivityResultContracts.TakePicture()
+    ) { success ->
+        val file = photoFile
+        if (success && file != null) {
             coroutineScope.launch {
                 try {
-                    val stream = java.io.ByteArrayOutputStream()
-                    bitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, 85, stream)
-                    val imageBody = stream.toByteArray().toRequestBody("image/jpeg".toMediaType())
-                    val imagePart = MultipartBody.Part.createFormData("image", "photo.jpg", imageBody)
-                    val userIdBody = userId.toString().toRequestBody("text/plain".toMediaType())
-                    val missionIdBody = missionId.toString().toRequestBody("text/plain".toMediaType())
+                    // 4단계는 촬영 순간의 위치가 필요함
+                    var latLng: Pair<Double, Double>? = null
+                    if (isStage4) {
+                        latLng = getCurrentLatLng(context)
+                        if (latLng == null) {
+                            Toast.makeText(context, "위치를 확인하지 못했어요. 위치 권한과 GPS를 확인해 주세요", Toast.LENGTH_LONG).show()
+                            return@launch
+                        }
+                    }
 
-                    val res = AiClient.api.sendPhoto(imagePart, userIdBody, missionIdBody)
+                    val bytes = withContext(Dispatchers.IO) { prepareImageBytes(file) }
+                    if (bytes == null) {
+                        Toast.makeText(context, "사진을 읽지 못했어요", Toast.LENGTH_SHORT).show()
+                        return@launch
+                    }
+                    val imageBody = bytes.toRequestBody("image/jpeg".toMediaType())
+                    val imagePart = MultipartBody.Part.createFormData("image", "photo.jpg", imageBody)
+
+                    val capturedAt = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssXXX", java.util.Locale.US).format(java.util.Date())
+                    val plain = "text/plain".toMediaType()
+                    val userIdBody = userId.toString().toRequestBody(plain)
+                    val capturedAtBody = capturedAt.toRequestBody(plain)
+                    val requestIdBody = java.util.UUID.randomUUID().toString().toRequestBody(plain)
+
+                    val stepBody = if (isStage4) photoStep.toRequestBody(plain) else null
+                    val latBody = latLng?.first?.toString()?.toRequestBody(plain)
+                    val lngBody = latLng?.second?.toString()?.toRequestBody(plain)
+
+                    val res = AiClient.api.sendPhoto(
+                        imagePart, userIdBody, capturedAtBody, requestIdBody,
+                        stepBody, latBody, lngBody
+                    )
                     handleAiResponse(res)
+
+                    if (isStage4) {
+                        if (res.nextStep == "alighting") photoStep = "alighting"
+                        if (res.missionResult == "success") photoStep = "boarding" // 다음 미션 대비 초기화
+                    }
                 } catch (e: Exception) {
                     Toast.makeText(context, "사진 전송 실패", Toast.LENGTH_SHORT).show()
+                } finally {
+                    file.delete()
                 }
             }
         }
@@ -355,7 +361,6 @@ fun OrbitMainScreen() {
                         onClick = {
                             showMissionComplete = false
                             fuelLevel = (fuelLevel + 0.03f).coerceAtMost(1.0f)
-                            // 다음 미션으로 이동
                             if (currentMissionIndex < missionList.size - 1) {
                                 currentMissionIndex++
                             }
@@ -697,9 +702,64 @@ fun OrbitMainScreen() {
                 ) {
                     Text("위기발화 테스트", color = Color(0xFFFF6B5E), fontSize = 10.sp)
                 }
+                OutlinedButton(
+                    onClick = { isStage4 = !isStage4; photoStep = "boarding" },
+                    border = BorderStroke(1.dp, Color(0xFF00E5FF)),
+                    shape = RoundedCornerShape(8.dp),
+                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
+                ) {
+                    Text(if (isStage4) "4단계 모드 ON" else "4단계 모드 OFF", color = Color(0xFF00E5FF), fontSize = 10.sp)
+                }
             }
 
             Spacer(modifier = Modifier.weight(1f))
+
+            // 촬영 순간에 위치를 한 번만 읽음 (실패하거나 8초 넘으면 null)
+            @SuppressLint("MissingPermission")
+            suspend fun getCurrentLatLng(context: Context): Pair<Double, Double>? {
+                if (ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION)
+                    != PackageManager.PERMISSION_GRANTED
+                ) return null
+
+                val client = LocationServices.getFusedLocationProviderClient(context)
+                return withTimeoutOrNull(8000L) {
+                    suspendCancellableCoroutine<Pair<Double, Double>?> { cont ->
+                        client.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, null)
+                            .addOnSuccessListener { loc ->
+                                if (cont.isActive) cont.resume(loc?.let { it.latitude to it.longitude })
+                            }
+                            .addOnFailureListener { if (cont.isActive) cont.resume(null) }
+                    }
+                }
+            }
+            if (isStage4) {
+                Card(
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFF0A1628).copy(alpha = 0.9f)),
+                    shape = RoundedCornerShape(12.dp),
+                    border = BorderStroke(1.dp, accentColor.copy(alpha = 0.4f))
+                ) {
+                    Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)) {
+                        Text(
+                            text = if (photoStep == "boarding") "4단계 · 1/2 승차 인증" else "4단계 · 2/2 하차 인증",
+                            color = accentColor,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            fontFamily = FontFamily.Monospace
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = if (photoStep == "boarding")
+                                "교통카드 단말기, 하차벨, 노선도 중 하나를 카메라로 촬영하세요."
+                            else
+                                "정류장 표지판이나 역명판을 카메라로 촬영하세요.",
+                            color = Color(0xFFE6EDF6),
+                            fontSize = 12.sp,
+                            lineHeight = 17.sp
+                        )
+                    }
+                }
+            }
 
             // 하단 입력창 + 카메라 버튼
             Row(
@@ -710,7 +770,13 @@ fun OrbitMainScreen() {
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 IconButton(
-                    onClick = { cameraLauncher.launch(null) },
+                    onClick = {
+                        val dir = File(context.cacheDir, "images").apply { mkdirs() }
+                        val file = File(dir, "photo_${System.currentTimeMillis()}.jpg")
+                        photoFile = file
+                        val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+                        cameraLauncher.launch(uri)
+                    },
                     modifier = Modifier
                         .size(52.dp)
                         .background(Color(0xFF1A2238).copy(alpha = 0.9f), CircleShape)
@@ -723,53 +789,6 @@ fun OrbitMainScreen() {
                         modifier = Modifier.size(24.dp)
                     )
                 }
-
-                OutlinedTextField(
-                    value = inputText,
-                    onValueChange = { inputText = it },
-                    placeholder = {
-                        Text("오빗에게 교신하기...", color = Color(0xFF8A97AC), fontSize = 13.sp)
-                    },
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(52.dp),
-                    shape = RoundedCornerShape(26.dp),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = accentColor.copy(alpha = 0.6f),
-                        unfocusedBorderColor = Color(0xFF2A3A55),
-                        focusedTextColor = Color.White,
-                        unfocusedTextColor = Color.White,
-                        cursorColor = accentColor,
-                        focusedContainerColor = Color(0xFF1A2238).copy(alpha = 0.9f),
-                        unfocusedContainerColor = Color(0xFF1A2238).copy(alpha = 0.9f),
-                    ),
-                    singleLine = true,
-                    trailingIcon = {
-                        IconButton(
-                            onClick = {
-                                if (inputText.isNotBlank()) {
-                                    coroutineScope.launch {
-                                        val message = inputText
-                                        inputText = ""
-                                        try {
-                                            val res = AiClient.api.sendChat(ChatRequest(userId, message))
-                                            handleAiResponse(res)
-                                        } catch (e: Exception) {
-                                            orbitResponse = "교신 실패. 다시 시도하세요."
-                                        }
-                                    }
-                                }
-                            }
-                        ) {
-                            Icon(
-                                Icons.Filled.Send,
-                                contentDescription = "전송",
-                                tint = accentColor,
-                                modifier = Modifier.size(20.dp)
-                            )
-                        }
-                    }
-                )
             }
         }
     }
