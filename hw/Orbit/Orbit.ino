@@ -13,6 +13,7 @@
 #include "hardware_action.h"
 #include "json_pipeline.h"
 #include "time_sync.h"
+#include "voice_client.h"
 
 // 하드웨어 핀 정의 (진동 모터 핀은 non_blocking_hw.h의 VIBE_PIN 사용)
 #define LED_PIN       18
@@ -97,6 +98,11 @@ void setup() {
 
   setupMQTTManager(deviceId.c_str());
 
+  // 4. 음성 교신 (마이크·스피커·광센서). 실패해도 나머지 기능은 동작
+  if (!voiceBegin(deviceId.c_str())) {
+    Serial.println("[Voice] 음성 교신 비활성 (마이크/스피커/파일시스템 확인)");
+  }
+
   Serial.println("\n==========================================");
   Serial.println("  ORBIT FIRMWARE READY (Non-blocking)");
   Serial.println("==========================================");
@@ -131,8 +137,12 @@ void loop() {
     bootEffectEndTime = 0;
   }
 
-  // 3-1) 터치 반응
-  if (event.isTouched) {
+  // 음성 교신 중에는 쓰다듬기·TOUCH_LONG·흔들기 반응을 끔 (녹음에 진동음 섞임·표정 덮어쓰기 방지)
+  bool voiceBusy = voiceIsBusy();
+  if (voiceBusy) lastActivityTime = now;   // 교신 중 딥슬립 방지
+
+  // 3-1) 쓰다듬기 반응: PET_MIN_PRESS_MS 이상 눌러야 시작 (짧은 탭·더블탭은 표정 변화 없음)
+  if (event.isTouched && !voiceBusy && event.touchDuration >= PET_MIN_PRESS_MS) {
     if (!wasTouching) {
       triggerVibration(VIBE_DOUBLE);
       setExpression(EXPR_HAPPY, 0);
@@ -148,12 +158,12 @@ void loop() {
   }
 
   // 3-2) 길게 누름 -> 서버 전송
-  if (event.isLongTouch) {
+  if (event.isLongTouch && !voiceBusy) {
     sendEvent("TOUCH_LONG", event.currentSteps);
   }
 
   // 3-3) 흔들기(어지러움) 반응 + 서버 전송
-  if (event.isShaken) {
+  if (event.isShaken && !voiceBusy) {
     if (now - lastDizzyTime > 3500) {
       setExpression(EXPR_DIZZY, 2000);
       triggerFadeEffect(180, 0, 255, 1200);
@@ -173,6 +183,11 @@ void loop() {
     }
 #endif
   }
+
+  // 3-5) 더블탭 -> 음성 교신 시작 / 녹음 종료 / 재생 중단
+  //      (터치 반응 처리 뒤에 둬야 손 뗄 때의 기본 표정 복귀가 LISTENING 표정을 덮지 않음)
+  if (event.isDoubleTap) voiceOnDoubleTap();
+  voiceUpdate();
 
   // 4. OLED 연출 및 딥슬립 타이머 감시
   face.update();
