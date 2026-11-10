@@ -71,9 +71,11 @@ static void applyVibe(const String& key) {
 
 static void applyOled(const String& key) {
   if (key == "happy")                                         setExpression(EXPR_HAPPY, TEMP_EXPR_MS);
-  else if (key == "calm" || key == "normal" || key == "idle_eyes") setExpression(EXPR_NORMAL, 0);
+  else if (key == "normal" || key == "idle_eyes")             setExpression(EXPR_NORMAL, 0);
+  else if (key == "calm")                                     setExpression(EXPR_CALM, 0);   // 평상시처럼 유지
   else if (key == "sad" || key == "sad_eyes")                 setExpression(EXPR_SAD, TEMP_EXPR_MS);
-  else if (key == "angry" || key == "dizzy")                  setExpression(EXPR_DIZZY, TEMP_EXPR_MS); // angry는 임시 매핑
+  else if (key == "angry")                                    setExpression(EXPR_ANGRY, TEMP_EXPR_MS);
+  else if (key == "dizzy")                                    setExpression(EXPR_DIZZY, TEMP_EXPR_MS);
   else if (key == "listening")                                setExpression(EXPR_LISTENING, 0);
   else if (key == "thinking")                                 setExpression(EXPR_THINKING, 0);
   else if (key == "sleep")                                    setExpression(EXPR_SLEEP, 0);

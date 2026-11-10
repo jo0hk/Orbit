@@ -14,7 +14,9 @@ enum FaceExpression {
   EXPR_SLEEP,     // 수면 모드
   EXPR_DIZZY,     // 어지러움
   EXPR_LISTENING, // 음성 수신 중
-  EXPR_THINKING   // 생각 중
+  EXPR_THINKING,  // 생각 중 (애니메이션: 생각 방울)
+  EXPR_ANGRY,     // 화남
+  EXPR_CALM       // 차분함
 };
 
 class OrbitFace {
@@ -26,6 +28,8 @@ private:
   bool isBlinking;
   unsigned long blinkStartTime;
   unsigned long blinkDuration;
+  uint8_t animFrame;            // 애니메이션 표정(DIZZY, THINKING) 프레임 번호
+  unsigned long lastAnimTime;
 
   void drawFace(bool isClosed, bool isHappy, bool isSad);
 
@@ -33,7 +37,7 @@ public:
   OrbitFace();
   void begin();
   void setExpression(FaceExpression expr); // 표정 변경
-  void update();                           // 눈 깜빡임 처리
+  void update();                           // 눈 깜빡임 + 애니메이션 표정 갱신
   void playWakeupAnimation();              // 기상 시 서서히 눈뜨는 애니메이션
   void playSleepAnimation();               // 딥슬립 전 잠드는 연출 및 화면 끄기
 };
