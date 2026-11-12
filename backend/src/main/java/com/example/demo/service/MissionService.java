@@ -80,6 +80,24 @@ public class MissionService {
                         )
                 );
 
+        // Stage 4 최종 미션 완료 여부 확인
+        if (stage == 4) {
+
+            boolean alreadyCompleted =
+                    userMissionRepository
+                            .existsByUserIdAndMission_IdAndStatus(
+                                    userId,
+                                    mission.getId(),
+                                    MissionStatus.COMPLETED
+                            );
+
+            if (alreadyCompleted) {
+                throw new ResponseStatusException(
+                        HttpStatus.CONFLICT,
+                        "최종 미션을 이미 완료했습니다."
+                );
+            }
+        }
         // 오늘의 미션 생성 및 저장
         UserMission userMission =
                 new UserMission(userId, mission);

@@ -1,4 +1,6 @@
+
 package com.example.demo.service;
+
 import com.example.demo.dto.ConversationRequest;
 import com.example.demo.dto.ConversationResponse;
 import com.example.demo.entity.Conversation;
@@ -19,8 +21,6 @@ public class ConversationService {
     private final ConversationRepository conversationRepository;
     private final CryptoService cryptoService;
 
-
-
     @Transactional
     public ConversationResponse save(ConversationRequest request) {
 
@@ -35,7 +35,25 @@ public class ConversationService {
             );
         }
 
-        // 2. 공통 감정값 검증
+        // 2. 동일한 대화 중복 저장 방지 (추가)
+        if (request.getRequestId() != null &&
+                !request.getRequestId().isBlank()) {
+
+            boolean exists = conversationRepository
+                    .existsByUserIdAndRequestIdAndSpeaker(
+                            request.getUserId(),
+                            request.getRequestId(),
+                            request.getSpeaker()
+                    );
+
+            if (exists) {
+                throw new IllegalArgumentException(
+                        "이미 저장된 대화 요청입니다."
+                );
+            }
+        }
+
+        // 3. 공통 감정값 검증
         String emotion = null;
 
         if (request.getEmotion() != null) {
@@ -44,11 +62,11 @@ public class ConversationService {
                     .toJson();
         }
 
-        // 3. 메시지 AES-GCM 암호화
+        // 4. 메시지 AES-GCM 암호화
         String encryptedMessage =
                 cryptoService.encrypt(request.getMessage());
 
-        // 4. Conversation 객체 생성
+        // 5. Conversation 객체 생성
         Conversation conversation = Conversation.builder()
                 .userId(request.getUserId())
                 .speaker(request.getSpeaker())
@@ -59,16 +77,15 @@ public class ConversationService {
                 .requestId(request.getRequestId())
                 .build();
 
-        // 5. DB에 저장
+        // 6. DB에 저장
         Conversation saved =
                 conversationRepository.save(conversation);
 
-        // 6. 응답 반환
+        // 7. 응답 반환
         return toResponse(saved);
     }
 
-
-
+    // 전체 대화 조회
     public List<ConversationResponse> getConversations(Long userId) {
 
         return conversationRepository
@@ -78,7 +95,11 @@ public class ConversationService {
                 .toList();
     }
 
-    public List<ConversationResponse> getRecentConversations(Long userId, int limit) {
+    // 최근 N개 대화 조회
+    public List<ConversationResponse> getRecentConversations(
+            Long userId,
+            int limit
+    ) {
 
         List<Conversation> conversations = conversationRepository
                 .findByUserIdOrderByCreatedAtDesc(
@@ -92,6 +113,7 @@ public class ConversationService {
                 .toList();
     }
 
+    // Conversation → Response DTO 변환
     private ConversationResponse toResponse(Conversation conversation) {
 
         return ConversationResponse.builder()

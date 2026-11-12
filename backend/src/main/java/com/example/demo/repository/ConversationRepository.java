@@ -3,6 +3,7 @@ package com.example.demo.repository;
 import com.example.demo.entity.Conversation;
 import com.example.demo.entity.Speaker;
 import org.springframework.data.jpa.repository.JpaRepository;
+import com.example.demo.entity.Speaker;
 
 import java.util.List;
 
@@ -18,5 +19,11 @@ public interface ConversationRepository
     List<Conversation> findByUserIdOrderByCreatedAtDesc(
             Long userId,
             org.springframework.data.domain.Pageable pageable
+    );
+
+    boolean existsByUserIdAndRequestIdAndSpeaker(
+            Long userId,
+            String requestId,
+            Speaker speaker
     );
 }
