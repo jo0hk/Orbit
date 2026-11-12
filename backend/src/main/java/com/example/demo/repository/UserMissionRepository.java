@@ -1,5 +1,6 @@
 package com.example.demo.repository;
 
+import com.example.demo.entity.MissionStatus;
 import com.example.demo.entity.UserMission;
 import org.springframework.data.jpa.repository.JpaRepository;
 
@@ -20,4 +21,11 @@ public interface UserMissionRepository
     List<UserMission> findAllByUserIdOrderByAssignedDateDescIdDesc(
             Long userId
     );
+
+    boolean existsByUserIdAndMission_IdAndStatus(
+            Long userId,
+            Long missionId,
+            MissionStatus status
+    );
 }
+
