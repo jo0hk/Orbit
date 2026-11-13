@@ -12,6 +12,7 @@ import types
 import wave
 from shutil import which
 
+import numpy as np
 import pytest
 
 pytestmark = pytest.mark.skipif(which("ffmpeg") is None, reason="ffmpeg 필요 (pydub)")
@@ -61,7 +62,23 @@ def test_output_is_16k_mono_16bit_pcm_wav(tmp_path, monkeypatch, plain, frame_ra
         assert w.getsampwidth() == 2
         assert w.getcomptype() == "NONE"  # PCM
         assert w.getnframes() > 16000 * 0.9  # 약 1초 이상 (무전 노이즈 포함 시 더 김)
+        samples = np.frombuffer(w.readframes(w.getnframes()), dtype=np.int16)
     assert list(tmp_path.iterdir()) == [out]  # 중간 파일(_raw.mp3)은 남기지 않음
+
+    # 피크가 -1dBFS 근처로 정규화됨 (입력 사인파는 약 -12dBFS)
+    peak_dbfs = 20 * np.log10(np.abs(samples.astype(np.int32)).max() / 32768)
+    assert -1.5 <= peak_dbfs <= -0.5, peak_dbfs
+
+
+def test_silence_is_not_amplified():
+    """무음은 정규화해도 무음이어야 합니다 (0으로 나누기·잡음 증폭 없음)."""
+    from pydub import AudioSegment
+
+    from app.core.tts import to_keyring_wav
+
+    out = to_keyring_wav(AudioSegment.silent(duration=500, frame_rate=24000))
+    assert out.frame_rate == 16000 and out.channels == 1 and out.sample_width == 2
+    assert out.max == 0
 
 
 def test_raw_file_removed_when_conversion_fails(tmp_path, monkeypatch):

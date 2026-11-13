@@ -10,6 +10,7 @@
    여기서는 노이즈 합성을 포함한 버전으로 복원했습니다.
 
 출력 형식: 16kHz · 모노 · 16bit PCM WAV (11-13 변경, 이전 mp3).
+   마지막에 피크를 -1dBFS 로 정규화합니다 (11-13 추가, 키링 스피커 음량 부족).
    키링(ESP32)은 mp3를 디코딩하지 못하고, audio_out 이 16kHz PCM 16bit WAV만
    재생합니다. 고위험 응답(plain=True)도 같은 형식으로 내보냅니다.
 
@@ -38,14 +39,25 @@ OUT_SAMPLE_RATE = 16000
 OUT_CHANNELS = 1
 OUT_SAMPLE_WIDTH = 2  # bytes = 16bit
 
+# 피크 정규화 목표 (11-13 추가). 키링 소형 스피커에서 소리가 너무 작아
+# 마지막에 최대 -1dBFS 까지 키웁니다. 0dBFS 에 붙이지 않는 건 클리핑 여유.
+TARGET_PEAK_DBFS = -1.0
+
 
 def to_keyring_wav(segment):
-    """pydub AudioSegment 를 키링이 재생할 수 있는 형식으로 바꿉니다."""
-    return (
+    """pydub AudioSegment 를 키링이 재생할 수 있는 형식으로 바꾸고 음량을 정규화합니다.
+
+    리샘플링 뒤에 정규화합니다. 순서를 바꾸면 리샘플링으로 피크가 달라져
+    목표치에서 벗어날 수 있습니다.
+    """
+    from pydub.effects import normalize
+
+    converted = (
         segment.set_frame_rate(OUT_SAMPLE_RATE)
         .set_channels(OUT_CHANNELS)
         .set_sample_width(OUT_SAMPLE_WIDTH)
     )
+    return normalize(converted, headroom=-TARGET_PEAK_DBFS)
 
 
 class RadioTTS:
@@ -69,7 +81,7 @@ class RadioTTS:
         plain=True 이면 무전 톤 후처리(대역 필터 + 노이즈 합성)를 건너뜁니다.
         고위험 발화 대응 시에만 씁니다. 위기 상황에서 캐릭터 연출을 하지
         않기 위함입니다. → docs/high-risk-utterance-policy.md
-        형식 변환은 plain 여부와 관계없이 합니다.
+        형식 변환과 음량 정규화(-1dBFS)는 plain 여부와 관계없이 합니다.
         """
         import edge_tts
         from pydub import AudioSegment
