@@ -77,6 +77,9 @@ def test_voice_weather_mission_success():
     assert "과장 톤을 한 단계 낮춰" in core.llm.prompts[0]
     assert core.tts.calls == 1
     assert res.request_id
+    # 키링이 서버 주소를 앞에 붙여 내려받는 상대 경로 (main.py 가 /outputs 로 공개)
+    assert res.audio_url.startswith("outputs/") and res.audio_url.endswith(".wav")
+    assert "\\" not in res.audio_url
 
     rec = out.record
     assert (rec.user_id, rec.stage, rec.channel) == (3, 2, Channel.VOICE)
@@ -153,6 +156,23 @@ def test_tts_failure_still_answers_and_records():
     assert out.response.speech
     assert out.response.mission_result is MissionResult.SUCCESS
     assert out.record.user_id == 3
+
+
+def test_outputs_route_serves_reply_audio():
+    """main.py 가 응답 음성 폴더를 /outputs 로 공개하는지 확인합니다 (lifespan 미실행)."""
+    from app.core.pipeline import OUTPUT_DIR
+    from app.main import app
+
+    f = OUTPUT_DIR / "pytest_route_check.wav"
+    f.write_bytes(b"RIFF0000WAVE")
+    try:
+        client = TestClient(app)  # with 문을 쓰지 않아 모델 로딩(lifespan)을 하지 않음
+        resp = client.get("/outputs/pytest_route_check.wav")
+        assert resp.status_code == 200
+        assert resp.content == b"RIFF0000WAVE"
+        assert client.get("/outputs/../app/main.py").status_code == 404
+    finally:
+        f.unlink(missing_ok=True)
 
 
 # ─── 앱 텍스트 ───────────────────────────────────────────────
