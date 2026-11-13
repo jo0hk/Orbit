@@ -1,6 +1,7 @@
 
 package com.example.demo.controller;
-
+import com.fasterxml.jackson.databind.node.NullNode;
+import org.springframework.http.ResponseEntity;
 import com.example.demo.dto.MissionResponse;
 import com.example.demo.dto.MissionResultRequest;
 import com.example.demo.service.MissionService;
@@ -32,14 +33,20 @@ public class MissionController {
         return missionService.assignTodayMission(userId);
     }
 
-    // 오늘의 미션 조회
     @GetMapping("/current")
-    public MissionResponse getCurrentMission(
+    public ResponseEntity<?> getCurrentMission(
             @RequestParam Long userId
     ) {
-        return missionService.getCurrentMission(userId);
-    }
+        MissionResponse mission =
+                missionService.getCurrentMission(userId);
 
+        if (mission == null) {
+            return ResponseEntity.ok()
+                    .body(NullNode.getInstance());
+        }
+
+        return ResponseEntity.ok(mission);
+    }
     // 미션 진행 기록 조회
     @GetMapping("/progress")
     public List<MissionResponse> getMissionProgress(
