@@ -88,8 +88,13 @@ RecordResult audioInRecord(const char* path, volatile bool* stopFlag, uint32_t* 
   *outFileBytes = 0;
   if (!micReady) return REC_ERROR;
 
-  // 1) 소음 측정 (시작음 잔향·마이크 안정화 구간도 버리는 효과)
-  int n = 0, cnt = 0;
+  // 0) 시작음 잔향 버리기
+  int n = 0;
+  unsigned long ts = millis();
+  while (millis() - ts < REC_SETTLE_MS) readBlock(&n);
+  
+  // 1) 소음 측정
+  int cnt = 0;
   double sum = 0;
   unsigned long t0 = millis();
   while (millis() - t0 < REC_NOISE_CAL_MS) {
@@ -116,6 +121,7 @@ RecordResult audioInRecord(const char* path, volatile bool* stopFlag, uint32_t* 
   uint32_t dataBytes = 0;
   unsigned long start = millis(), lastVoice = 0;
   bool heard = false;
+  uint32_t loudMs = 0;
   RecordResult result = REC_OK;
 
   while (true) {
@@ -131,9 +137,19 @@ RecordResult audioInRecord(const char* path, volatile bool* stopFlag, uint32_t* 
     dataBytes += len;
 
     unsigned long now = millis();
-    if (rms >= (heard ? keepTh : startTh)) {
-      if (!heard) Serial.printf("[AudioIn] 말소리 감지 (%.0f)\n", rms);
-      heard = true;
+    if (!heard) {
+      // 짧은 소리(탭·충격음)는 무시: 기준을 넘는 소리가 REC_SPEECH_MIN_MS 이상 이어져야 인정
+      if (rms >= startTh) {
+        loudMs += (uint32_t)n * 1000 / REC_SAMPLE_RATE;
+        if (loudMs >= REC_SPEECH_MIN_MS) {
+          heard = true;
+          lastVoice = now;
+          Serial.printf("[AudioIn] 말소리 감지 (%.0f, %lums 지속)\n", rms, (unsigned long)loudMs);
+        }
+      } else {
+        loudMs = 0;
+      }
+    } else if (rms >= keepTh) {
       lastVoice = now;
     }
 

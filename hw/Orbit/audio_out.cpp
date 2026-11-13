@@ -49,6 +49,14 @@ static bool writeFrames(size_t frames) {
   return i2s_write(SPK_PORT, outBuf, frames * 2 * sizeof(int16_t), &written, pdMS_TO_TICKS(500)) == ESP_OK;
 }
 
+// [증폭] 샘플에 AUDIO_PLAY_GAIN을 곱하고, 16bit 범위를 넘으면 잘라서 오버플로 방지
+static inline int16_t amplify(int16_t s) {
+  float v = s * AUDIO_PLAY_GAIN;
+  if (v > 32767.0f) v = 32767.0f;
+  else if (v < -32768.0f) v = -32768.0f;
+  return (int16_t)v;
+}
+
 void audioOutTone(float freq, uint32_t ms, float volume) {
   if (!spkReady) return;
   uint32_t total = (uint32_t)REC_SAMPLE_RATE * ms / 1000;
@@ -154,6 +162,7 @@ bool audioOutPlayWav(WiFiClient& in, volatile bool* stopFlag) {
   uint32_t remaining = dataSize;
   uint8_t inBuf[FRAMES * 2 * 2];
   bool ok = true;
+  int32_t peakIn = 0;   // [증폭] 원본 최대 음량 (진단용)
 
   while (unknownLen || remaining > 0) {
     if (stopFlag && *stopFlag) { Serial.println("[AudioOut] 더블탭 -> 재생 중단"); break; }
@@ -173,14 +182,18 @@ bool audioOutPlayWav(WiFiClient& in, volatile bool* stopFlag) {
     size_t frames = want / frameBytes;
     const int16_t* src = (const int16_t*)inBuf;
     for (size_t i = 0; i < frames; i++) {
-      int16_t l = (int16_t)(src[i * channels] * AUDIO_PLAY_VOLUME);
-      int16_t r = (channels == 2) ? (int16_t)(src[i * 2 + 1] * AUDIO_PLAY_VOLUME) : l;
-      outBuf[2 * i] = l;
-      outBuf[2 * i + 1] = r;
+      // [증폭] 원본 샘플을 꺼내 최대 음량을 기록하고, 증폭해서 출력
+      int16_t sl = src[i * channels];
+      int16_t sr = (channels == 2) ? src[i * 2 + 1] : sl;
+      peakIn = max(peakIn, (int32_t)abs(sl));
+      outBuf[2 * i] = amplify(sl);
+      outBuf[2 * i + 1] = amplify(sr);
     }
     if (!writeFrames(frames)) { ok = false; break; }
   }
 
   i2s_zero_dma_buffer(SPK_PORT);
+  // [증폭] 원본 음량 진단 로그: 32767에 가까우면 원본이 이미 최대라 증폭해도 찌그러지기만 함
+  Serial.printf("[AudioOut] 원본 최대 음량 %ld / 32767 (증폭 x%.1f)\n", (long)peakIn, AUDIO_PLAY_GAIN);
   return ok;
 }
