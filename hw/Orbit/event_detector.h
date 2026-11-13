@@ -11,6 +11,8 @@ struct RobotEvent {
   bool isShaken;
   bool stepDetected;
   int currentSteps;
+  bool isDoubleTap;   // 짧은 탭 2번 (음성 교신 시작/종료)
+  unsigned long touchDuration;   // 현재 누르고 있는 시간(ms), 안 누르면 0
 };
 
 void setupEventDetector(TouchHandler* touchPtr);
