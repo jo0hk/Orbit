@@ -65,9 +65,46 @@ def test_output_is_16k_mono_16bit_pcm_wav(tmp_path, monkeypatch, plain, frame_ra
         samples = np.frombuffer(w.readframes(w.getnframes()), dtype=np.int16)
     assert list(tmp_path.iterdir()) == [out]  # 중간 파일(_raw.mp3)은 남기지 않음
 
-    # 피크가 -1dBFS 근처로 정규화됨 (입력 사인파는 약 -12dBFS)
+    # 피크가 -1dBFS 근처, 넘지는 않음 (입력 사인파는 약 -12dBFS → 정규화 + 리미터)
     peak_dbfs = 20 * np.log10(np.abs(samples.astype(np.int32)).max() / 32768)
     assert -1.5 <= peak_dbfs <= -0.5, peak_dbfs
+
+
+def test_soft_limit_raises_loudness_and_keeps_peak():
+    """리미터는 평균 음량을 키우되 피크는 -1dBFS 를 넘기지 않아야 합니다."""
+    from pydub import AudioSegment
+
+    from app.core.tts import soft_limit, to_keyring_wav
+
+    sr = 16000
+    t = np.linspace(0, 1, sr, endpoint=False)
+    # 말소리처럼 크고 작은 구간이 섞인 신호 (평균은 작고 피크만 큼)
+    x = np.sin(2 * np.pi * 300 * t) * (0.05 + 0.95 * (t > 0.9))
+    seg = AudioSegment((x * 20000).astype(np.int16).tobytes(), frame_rate=sr, sample_width=2, channels=1)
+
+    base = to_keyring_wav(seg)
+    loud = soft_limit(base, 12.0)
+    b = np.array(base.get_array_of_samples(), dtype=np.float64)
+    l = np.array(loud.get_array_of_samples(), dtype=np.float64)
+    assert 20 * np.log10(np.abs(l).max() / 32768) <= -1.0 + 1e-6  # 피크는 넘지 않음
+    quiet = slice(0, int(0.9 * sr))
+    gain_quiet = 20 * np.log10(np.sqrt(np.mean(l[quiet] ** 2)) / np.sqrt(np.mean(b[quiet] ** 2)))
+    assert gain_quiet > 10.0  # 작은 소리는 거의 구동량(12dB)만큼 커짐
+
+
+def test_radio_static_quieter_than_voice(tmp_path, monkeypatch):
+    """앞뒤 노이즈가 목소리를 가리지 않도록 목소리보다 작아야 합니다."""
+    from app.core.tts import RadioTTS
+
+    _fake_edge_tts(monkeypatch)
+    out = tmp_path / "reply.wav"
+    asyncio.run(RadioTTS().synthesize("테스트", str(out)))
+    with wave.open(str(out), "rb") as w:
+        a = np.frombuffer(w.readframes(w.getnframes()), dtype=np.int16).astype(float)
+    rms = lambda s: np.sqrt(np.mean(s ** 2))
+    pre, voice, post = a[: int(0.4 * 16000)], a[int(0.4 * 16000): -int(0.6 * 16000)], a[-int(0.6 * 16000):]
+    assert rms(pre) < rms(voice)
+    assert rms(post) < rms(pre)
 
 
 def test_silence_is_not_amplified():
@@ -76,9 +113,12 @@ def test_silence_is_not_amplified():
 
     from app.core.tts import to_keyring_wav
 
+    from app.core.tts import soft_limit
+
     out = to_keyring_wav(AudioSegment.silent(duration=500, frame_rate=24000))
     assert out.frame_rate == 16000 and out.channels == 1 and out.sample_width == 2
     assert out.max == 0
+    assert soft_limit(out, 12.0).max == 0
 
 
 def test_raw_file_removed_when_conversion_fails(tmp_path, monkeypatch):

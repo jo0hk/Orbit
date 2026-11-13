@@ -4,7 +4,7 @@
 > 대상: HW · 앱 · 백엔드 · AI 전 파트
 > 근거: 2026-09-17 회의 결정(노션 「회의내용 정리 / 20260917」), 백엔드 `develop`(`e036b37`), HW `hw/Orbit/Orbit.ino`, `ai/app/schemas.py`
 
-> **11-13 개정 사항.** 응답 음성을 16kHz · 모노 · 16bit PCM WAV로 확정했습니다(이전 mp3). 키링 스피커에서 소리가 작아 마지막에 피크를 -1dBFS로 정규화합니다. 고위험 응답도 같은 형식입니다. AI 서버가 응답 음성 폴더를 `/outputs` 경로로 공개해, 키링이 `audio_url` 앞에 서버 주소를 붙여 내려받습니다(1절 응답 스펙, 6절).
+> **11-13 개정 사항.** 응답 음성을 16kHz · 모노 · 16bit PCM WAV로 확정했습니다(이전 mp3). 키링 스피커에서 소리가 작아 피크를 -1dBFS로 정규화한 뒤 소프트 리미터로 평균 음량을 키웁니다(무전 톤 기준 원래 대비 약 +13dB). 고위험 응답도 같은 형식입니다. AI 서버가 응답 음성 폴더를 `/outputs` 경로로 공개해, 키링이 `audio_url` 앞에 서버 주소를 붙여 내려받습니다(1절 응답 스펙, 6절).
 
 > **11-09 개정 사항.** AI 서버의 백엔드 연동을 구현했습니다(1절). 음성 엔드포인트를 `device_id` 기준으로 바꾸고, 앱 텍스트 엔드포인트를 추가했습니다. 백엔드 Context API가 아직 없어 기존 API를 조합해 맥락을 조회합니다. 응답에 `mission_result`, `request_id`, `latency.context_ms`를 추가했습니다.
 
@@ -122,7 +122,7 @@ POST /api/v1/interact/text         (application/json)
 - `mission_result` (11-09 추가): 이번 턴의 미션 판정. `success` / `retry`(조건 미달, 같은 날 다시 가능) / `deferred`(보류) / `none`(미션과 무관). 앱은 `success`일 때 미션 성공 화면을 띄우면 됩니다. 미션 반응 턴의 `led`·`vibe`·`oled_expression`은 LLM 값이 아니라 서버가 정한 신호입니다(`docs/mission-context-injection.md` 1절).
 - `request_id` (11-09 추가): 대화 저장에 쓴 값. 요청에 없으면 AI 서버가 발급합니다.
 - **HW 확인 필요:** 09-17 회의 추천 구조는 `hardware{led, vibe, oled}`로 묶는 형태였고, 현재 응답은 평평한 구조입니다. 결정 요약에 없는 항목이라 HW 파싱 방식에 맞춰 정합니다.
-- **응답 음성 (11-13 확정):** 16kHz · 모노 · 16bit PCM WAV, 피크 -1dBFS로 음량 정규화. 키링 `audio_out`이 이 형식만 재생합니다. `audio_url`은 `outputs/<UUID>.wav` 상대 경로이고, 키링이 `http://<AI 서버>:8000/`을 앞에 붙여 `GET`합니다(AI 서버 `/outputs` 정적 경로). 음성 합성이 실패하면 `audio_url`은 `null`이고 키링은 LED·진동·표정만 적용합니다.
+- **응답 음성 (11-13 확정):** 16kHz · 모노 · 16bit PCM WAV, 피크 -1dBFS 정규화 후 소프트 리미터로 음량 증폭. 키링 `audio_out`이 이 형식만 재생합니다. `audio_url`은 `outputs/<UUID>.wav` 상대 경로이고, 키링이 `http://<AI 서버>:8000/`을 앞에 붙여 `GET`합니다(AI 서버 `/outputs` 정적 경로). 음성 합성이 실패하면 `audio_url`은 `null`이고 키링은 LED·진동·표정만 적용합니다.
 
 ### v1 대비
 
