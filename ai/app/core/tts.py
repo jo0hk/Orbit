@@ -11,8 +11,10 @@
 
 출력 형식: 16kHz · 모노 · 16bit PCM WAV (11-13 변경, 이전 mp3).
    음량 (11-13): 키링 스피커에서 소리가 작아, 목소리를 -1dBFS 로 정규화한 뒤
-   소프트 리미터(tanh)로 평균 음량을 키웁니다. 피크 정규화만으로는 약 +4dB
-   밖에 안 커져서 부족했습니다. 앞뒤 노이즈는 목소리보다 작게 맞춥니다.
+   피크 리미터로 평균 음량을 키웁니다. 피크 정규화만으로는 약 +4dB 밖에 안
+   커져서 부족했습니다. 앞뒤 노이즈는 목소리보다 작게 맞춥니다.
+   처음에는 tanh 로 파형을 직접 눌렀는데 목소리가 거칠어져서, 파형은 그대로 두고
+   음량(게인)만 부드럽게 줄이는 엔벨로프 방식으로 바꿨습니다.
    키링(ESP32)은 mp3를 디코딩하지 못하고, audio_out 이 16kHz PCM 16bit WAV만
    재생합니다. 고위험 응답(plain=True)도 같은 형식으로 내보냅니다.
 
@@ -43,12 +45,12 @@ OUT_SAMPLE_WIDTH = 2  # bytes = 16bit
 # ─── 음량 (11-13) ─────────────────────────────────────────────
 # 최대 피크. 0dBFS 에 붙이지 않는 건 클리핑 여유.
 TARGET_PEAK_DBFS = -1.0
-# 리미터 구동량. 클수록 평균 음량이 커지고 일그러짐도 늘어납니다.
-# 11-13 실측(동일 문장): 무전 12dB → 목소리 RMS +8.6dB (리미터 구간 샘플 6%),
-#                        고위험 8dB → +5.8dB (3.5%)
-# 무전 톤은 일그러짐이 연출과 어울리고, 고위험 안내는 또렷함이 우선이라 다르게 둡니다.
-RADIO_DRIVE_DB = 12.0
-PLAIN_DRIVE_DB = 8.0
+# 리미터 설정. 구동량이 클수록 커지지만 일정 이상에서는 거의 안 커지고 거칠어집니다.
+# 11-13 실측(동일 문장, 무전 톤): 정규화만 RMS -20.0dBFS → 이 설정 -13.8dBFS,
+#   파형 왜곡 SDR 21dB (이전 tanh 12dB 방식은 -11.4dBFS 였지만 SDR 13.8dB 로 거칠었음)
+LIMITER_DRIVE_DB = 12.0
+LIMITER_LOOKAHEAD_MS = 3.0  # 피크 직전부터 미리 줄여 순간 클리핑 방지
+LIMITER_RELEASE_MS = 40.0   # 줄인 음량을 되돌리는 속도. 짧을수록 커지고 거칠어짐
 # 앞뒤 노이즈 음량 (목소리 RMS 기준). 이전에는 노이즈가 목소리보다 커서 목소리를 가렸습니다.
 STATIC_PRE_BELOW_VOICE_DB = 6.0
 STATIC_POST_BELOW_VOICE_DB = 8.0
@@ -70,16 +72,49 @@ def to_keyring_wav(segment):
     return normalize(converted, headroom=-TARGET_PEAK_DBFS)
 
 
-def soft_limit(segment, drive_db: float):
-    """drive_db 만큼 키운 뒤 tanh 로 피크를 -1dBFS 아래에 부드럽게 눌러 평균 음량을 키웁니다.
+def limit_loudness(
+    segment,
+    drive_db: float = LIMITER_DRIVE_DB,
+    lookahead_ms: float = LIMITER_LOOKAHEAD_MS,
+    release_ms: float = LIMITER_RELEASE_MS,
+):
+    """drive_db 만큼 키우고, 피크가 -1dBFS 를 넘는 구간만 음량을 부드럽게 줄입니다 (피크 리미터).
 
-    작은 소리는 거의 그대로 drive_db 만큼 커지고, 큰 소리만 눌립니다.
+    파형을 직접 깎지 않고 게인만 바꾸기 때문에 tanh·클리핑보다 소리가 덜 거칩니다.
+      1. 샘플마다 피크를 넘지 않는 데 필요한 게인을 구함
+      2. lookahead 구간의 최솟값을 미리 적용 (피크 전에 줄여 둠)
+      3. 줄인 게인은 release 시간에 걸쳐 천천히 되돌림
+      4. lookahead 길이로 평균 내서 게인 변화를 매끄럽게
+    3·4는 값을 더 작게만 만들므로 결과 피크가 -1dBFS 를 넘지 않습니다.
     16bit 세그먼트(to_keyring_wav 결과)를 받습니다.
     """
+    from numpy.lib.stride_tricks import sliding_window_view
+
+    sr = segment.frame_rate
     ceiling = 10 ** (TARGET_PEAK_DBFS / 20)
     x = np.array(segment.get_array_of_samples(), dtype=np.float64) / 32768.0
-    y = ceiling * np.tanh(x * (10 ** (drive_db / 20)) / ceiling)
-    return segment._spawn((np.clip(y, -1.0, 1.0) * 32767).astype(np.int16).tobytes())
+    if x.size == 0:
+        return segment
+    x *= 10 ** (drive_db / 20)
+
+    need = np.minimum(1.0, ceiling / np.maximum(np.abs(x), 1e-12))
+    look = max(1, int(sr * lookahead_ms / 1000))
+    gain = sliding_window_view(np.concatenate([need, np.ones(look)]), look + 1).min(axis=1)
+
+    alpha = 1.0 - np.exp(-1.0 / (sr * release_ms / 1000))
+    released = np.empty_like(gain)
+    g = 1.0
+    for i, target in enumerate(gain):
+        g = target if target < g else g + (target - g) * alpha
+        released[i] = g
+
+    smooth = np.convolve(
+        np.concatenate([np.full(look, released[0]), released]),
+        np.ones(look + 1) / (look + 1),
+        mode="valid",
+    )
+    y = np.clip(x * smooth, -ceiling, ceiling)
+    return segment._spawn((y * 32767).astype(np.int16).tobytes())
 
 
 class RadioTTS:
@@ -122,10 +157,10 @@ class RadioTTS:
 
             voice = AudioSegment.from_file(raw)
             if plain:
-                final = soft_limit(to_keyring_wav(voice), PLAIN_DRIVE_DB)
+                final = limit_loudness(to_keyring_wav(voice))
             else:
                 filtered = voice.low_pass_filter(LOW_PASS_HZ).high_pass_filter(HIGH_PASS_HZ)
-                loud = soft_limit(to_keyring_wav(filtered), RADIO_DRIVE_DB)
+                loud = limit_loudness(to_keyring_wav(filtered))
                 level = loud.dBFS  # 목소리 평균 음량(RMS)
                 final = (
                     self._create_static(400, level - STATIC_PRE_BELOW_VOICE_DB)
