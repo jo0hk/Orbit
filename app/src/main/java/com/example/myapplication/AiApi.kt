@@ -56,8 +56,7 @@ interface AiApiService {
 }
 
 object AiClient {
-    // TODO: AI 담당이 준 터널 주소로 교체 (반드시 맨 끝에 / 붙이기)
-    private const val BASE_URL = "https://example.com/"
+    private const val BASE_URL = "http://10.162.49.110:8000/"
 
     private val okHttp = OkHttpClient.Builder()
         .connectTimeout(30, TimeUnit.SECONDS)

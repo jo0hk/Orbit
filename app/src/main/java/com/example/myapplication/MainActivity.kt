@@ -43,7 +43,7 @@ import kotlinx.coroutines.launch
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 import retrofit2.http.GET
-import retrofit2.http.Path
+import retrofit2.http.Query
 import kotlin.random.Random
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.MultipartBody
@@ -72,40 +72,33 @@ data class ConversationResponseDto(
     val createdAt: String
 )
 
-data class Mission(
-    val title: String,
-    val description: String
-)
-
 // ── Retrofit ──────────────────────────────────────────────────────────────────
+
+data class MissionResponse(
+    val missionId: Long? = null,
+    val stage: Int? = null,
+    val title: String? = null,
+    val description: String? = null,
+    val missionType: String? = null,
+    val status: String? = null
+)
 
 interface OrbitApiService {
     @GET("api/mood")
     suspend fun getCurrentMood(): MoodResponse
 
-    @GET("api/conversations/{userId}")
-    suspend fun getConversations(@Path("userId") userId: Long): List<ConversationResponseDto>
+    @GET("api/missions/current")
+    suspend fun getCurrentMission(@Query("userId") userId: Long): MissionResponse
 }
-
 object RetrofitClient {
     val apiService: OrbitApiService by lazy {
         Retrofit.Builder()
-            .baseUrl("http://10.173.45.59:8080/")
+            .baseUrl("http://10.162.49.59:8080/")
             .addConverterFactory(GsonConverterFactory.create())
             .build()
             .create(OrbitApiService::class.java)
     }
 }
-
-// ── 임시 미션 데이터 (AI 서버 연동 후 교체) ───────────────────────────────────
-
-val missionList = listOf(
-    Mission("아침 온기 나누기", "집에서 키링을 손바닥으로 3초간 가볍게 감싸 쥐기"),
-    Mission("물 한 잔의 여유", "차나 물을 마시는 동안 키링을 옆에 두고 3분간 가만히 머물기"),
-    Mission("산소 농도 체크", "키링 마이크 근처에서 천천히 깊은 호흡 소리 들려주기"),
-    Mission("태양광 패널 정검", "어두운 방의 전등을 켜서 조도를 높여주기"),
-    Mission("무중력 유영 연습", "키링을 손바닥 위에 올려고 가만히 10초간 바라보기"),
-)
 
 // ── MainActivity ──────────────────────────────────────────────────────────────
 
@@ -190,21 +183,21 @@ fun OrbitMainScreen() {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
 
+    val userId = 1L
+    var serverMission by remember { mutableStateOf<MissionResponse?>(null) }
+
     // 기본 상태
     var currentMood by remember { mutableStateOf("calm") }
     var fuelLevel by remember { mutableFloatStateOf(0.15f) }
-    var inputText by remember { mutableStateOf("") }
     var orbitResponse by remember { mutableStateOf("") }
-
-    // 미션 상태
-    var currentMissionIndex by remember { mutableIntStateOf(0) }
-    val currentMission = missionList.getOrNull(currentMissionIndex)
+    var chatText by remember { mutableStateOf("") }
+    var sending by remember { mutableStateOf(false) }
 
     // 팝업 상태
     var showMissionComplete by remember { mutableStateOf(false) }
     var showCrisisPopup by remember { mutableStateOf(false) }
     var showEndingPopup by remember { mutableStateOf(false) }
-    // 4단계 승차/하차 촬영 상태 (TODO: 임시 스위치. 나중에 서버 todayMission.stage로 교체)
+    // 4단계 승차/하차 촬영 상태
     var isStage4 by remember { mutableStateOf(false) }
     var photoStep by remember { mutableStateOf("boarding") } // boarding / alighting
 
@@ -215,8 +208,7 @@ fun OrbitMainScreen() {
         label = "fuel"
     )
 
-    val userId = 1L // TODO: 나중에 저장된 userId로 교체
-    val missionId = currentMissionIndex + 1 // TODO: 백엔드 todayMission.missionId로 교체
+
 
     // AI 서버 응답이 오면 이 함수가 팝업/대사를 제어
     fun handleAiResponse(res: AiResponse) {
@@ -285,13 +277,19 @@ fun OrbitMainScreen() {
     LaunchedEffect(Unit) {
         while (true) {
             try {
-                val response = RetrofitClient.apiService.getCurrentMood()
-                android.util.Log.d("ORBIT_MOOD", "받은 mood = '${response.mood}'")
-                currentMood = response.mood
+                val moodRes = RetrofitClient.apiService.getCurrentMood()
+                currentMood = moodRes.mood.trim().lowercase()
             } catch (e: Exception) {
-                android.util.Log.e("ORBIT_MOOD", "실패: ${e.message}")
+                android.util.Log.e("ORBIT_MOOD", "mood 조회 실패: ${e.message}")
             }
-            delay(1000L)
+            try {
+                val m = RetrofitClient.apiService.getCurrentMission(userId)
+                serverMission = m
+                isStage4 = (m.stage == 4)
+            } catch (e: Exception) {
+                android.util.Log.e("ORBIT_MISSION", "미션 조회 실패: ${e.message}")
+            }
+            delay(3000L)
         }
     }
 
@@ -361,9 +359,6 @@ fun OrbitMainScreen() {
                         onClick = {
                             showMissionComplete = false
                             fuelLevel = (fuelLevel + 0.03f).coerceAtMost(1.0f)
-                            if (currentMissionIndex < missionList.size - 1) {
-                                currentMissionIndex++
-                            }
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFFD27A)),
                         shape = RoundedCornerShape(12.dp)
@@ -418,7 +413,6 @@ fun OrbitMainScreen() {
                         Button(
                             onClick = {
                                 showCrisisPopup = false
-                                // TODO: AI 서버에 위기 신호 전송
                             },
                             colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF6B5E)),
                             shape = RoundedCornerShape(12.dp)
@@ -637,78 +631,40 @@ fun OrbitMainScreen() {
             Spacer(modifier = Modifier.height(12.dp))
 
             // 미션 위젯
-            currentMission?.let { mission ->
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(containerColor = Color(0xFF0A1628).copy(alpha = 0.9f)),
-                    shape = RoundedCornerShape(12.dp),
-                    border = BorderStroke(1.dp, accentColor.copy(alpha = 0.25f))
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF0A1628).copy(alpha = 0.9f)),
+                shape = RoundedCornerShape(12.dp),
+                border = BorderStroke(1.dp, accentColor.copy(alpha = 0.25f))
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(6.dp)
-                                .clip(CircleShape)
-                                .background(accentColor)
+                    Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(accentColor))
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "STAGE ${serverMission?.stage ?: "-"}",
+                            color = accentColor.copy(alpha = 0.6f),
+                            fontSize = 10.sp,
+                            fontFamily = FontFamily.Monospace,
+                            letterSpacing = 1.sp
                         )
-                        Spacer(modifier = Modifier.width(10.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = "SYS_TASK · ${currentMissionIndex + 1}/${missionList.size}",
-                                color = accentColor.copy(alpha = 0.6f),
-                                fontSize = 10.sp,
-                                fontFamily = FontFamily.Monospace,
-                                letterSpacing = 1.sp
-                            )
-                            Spacer(modifier = Modifier.height(2.dp))
-                            Text(
-                                text = mission.title,
-                                color = Color(0xFFE6EDF6),
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Text(
-                                text = mission.description,
-                                color = Color(0xFF8A97AC),
-                                fontSize = 11.sp,
-                                lineHeight = 16.sp
-                            )
-                        }
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = serverMission?.title ?: "오늘의 미션을 불러오는 중...",
+                            color = Color(0xFFE6EDF6),
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = serverMission?.description ?: "",
+                            color = Color(0xFF8A97AC),
+                            fontSize = 11.sp,
+                            lineHeight = 16.sp
+                        )
                     }
-                }
-            }
-
-            // 테스트 버튼 (AI 연동 후 삭제)
-            Spacer(modifier = Modifier.height(8.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                OutlinedButton(
-                    onClick = { showMissionComplete = true },
-                    border = BorderStroke(1.dp, Color(0xFFFFD27A)),
-                    shape = RoundedCornerShape(8.dp),
-                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
-                ) {
-                    Text("미션성공 테스트", color = Color(0xFFFFD27A), fontSize = 10.sp)
-                }
-                OutlinedButton(
-                    onClick = { showCrisisPopup = true },
-                    border = BorderStroke(1.dp, Color(0xFFFF6B5E)),
-                    shape = RoundedCornerShape(8.dp),
-                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
-                ) {
-                    Text("위기발화 테스트", color = Color(0xFFFF6B5E), fontSize = 10.sp)
-                }
-                OutlinedButton(
-                    onClick = { isStage4 = !isStage4; photoStep = "boarding" },
-                    border = BorderStroke(1.dp, Color(0xFF00E5FF)),
-                    shape = RoundedCornerShape(8.dp),
-                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
-                ) {
-                    Text(if (isStage4) "4단계 모드 ON" else "4단계 모드 OFF", color = Color(0xFF00E5FF), fontSize = 10.sp)
                 }
             }
 
@@ -762,13 +718,15 @@ fun OrbitMainScreen() {
             }
 
             // 하단 입력창 + 카메라 버튼
+            // 하단 입력창 + 카메라 버튼
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(bottom = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
+                // 카메라 버튼 (기존 유지)
                 IconButton(
                     onClick = {
                         val dir = File(context.cacheDir, "images").apply { mkdirs() }
@@ -787,6 +745,59 @@ fun OrbitMainScreen() {
                         contentDescription = "카메라",
                         tint = Color.White,
                         modifier = Modifier.size(24.dp)
+                    )
+                }
+
+                // 텍스트 입력창 (AI 담당 코드)
+                OutlinedTextField(
+                    value = chatText,
+                    onValueChange = { chatText = it },
+                    placeholder = { Text("오빗에게 교신하기", color = Color(0xFF8A97AC), fontSize = 13.sp) },
+                    modifier = Modifier.weight(1f).height(52.dp),
+                    shape = RoundedCornerShape(26.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = accentColor.copy(alpha = 0.6f),
+                        unfocusedBorderColor = Color(0xFF2A3A55),
+                        focusedTextColor = Color.White,
+                        unfocusedTextColor = Color.White,
+                        cursorColor = accentColor,
+                        focusedContainerColor = Color(0xFF1A2238).copy(alpha = 0.9f),
+                        unfocusedContainerColor = Color(0xFF1A2238).copy(alpha = 0.9f),
+                    ),
+                    singleLine = true
+                )
+
+                // 송신 버튼 (AI 담당 코드)
+                IconButton(
+                    enabled = chatText.isNotBlank() && !sending,
+                    onClick = {
+                        val text = chatText
+                        sending = true
+                        coroutineScope.launch {
+                            try {
+                                val res = AiClient.api.sendChat(ChatRequest(userId, text))
+                                handleAiResponse(res)
+                                chatText = ""
+                            } catch (e: Exception) {
+                                android.util.Log.e("ORBIT_AI", "교신 실패: ${e.message}")
+                                Toast.makeText(context, "교신 실패", Toast.LENGTH_SHORT).show()
+                            } finally {
+                                sending = false
+                            }
+                        }
+                    },
+                    modifier = Modifier
+                        .size(52.dp)
+                        .background(
+                            if (chatText.isNotBlank() && !sending) accentColor else Color(0xFF2A3A55),
+                            CircleShape
+                        )
+                ) {
+                    Icon(
+                        Icons.Filled.Send,
+                        contentDescription = "송신",
+                        tint = Color.Black,
+                        modifier = Modifier.size(22.dp)
                     )
                 }
             }
