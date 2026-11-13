@@ -70,6 +70,17 @@ def test_response_includes_helplines():
         assert number in HIGH_RISK_SPEECH
 
 
+def test_response_mentions_24h():
+    assert "24시간" in HIGH_RISK_SPEECH
+
+
 def test_45_char_rule_does_not_apply():
     """45자 압축 규칙은 이 응답에 적용하지 않습니다."""
     assert len(HIGH_RISK_SPEECH) > 45
+
+
+def test_fits_app_screen():
+    """앱 화면의 다른 요소를 가리지 않도록 2줄 이내 (11-13 통합 테스트에서 아이콘을 가림)."""
+    lines = HIGH_RISK_SPEECH.split("\n")
+    assert len(lines) <= 2
+    assert all(line.strip() for line in lines)  # 빈 줄 없음
