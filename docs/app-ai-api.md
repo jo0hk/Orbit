@@ -1,8 +1,10 @@
-# 앱 ↔ AI 서버 API (텍스트 교신 확정 · 사진 판정 제안)
+# 앱 ↔ AI 서버 API (텍스트 교신 확정 · 사진 판정 3단계 구현)
 
-> 작성: AI/PM · 2026-11-09
+> 작성: AI/PM · 2026-11-09 · **개정 2026-11-13**
 > 대상: 앱
 > 근거: `docs/interface-spec-v1.md` 1절(11-09 개정), `docs/stage-mission-judgement.md`, `docs/mission-context-injection.md`, 앱 `feature/app` 브랜치 `AiApi.kt`·`MainActivity.kt`(`b8e9ce9`)
+
+> **11-13 개정 사항.** 사진 판정 `POST /api/v1/interact/photo`를 앱이 구현한 제안안 형식 그대로 구현했습니다. 3단계 랜드마크만 판정하고, 4단계(대중교통)는 `PHOTO_TRANSIT_NOT_READY` 안내 대사만 돌려줍니다. 4단계용 `step`·`lat`·`lng`는 받기만 하고 쓰거나 저장하지 않습니다.
 
 앱이 AI 서버에 직접 붙는 API를 정리한 문서입니다. **텍스트 교신은 구현과 백엔드 연동 확인까지 끝났습니다.** 사진 판정은 형식을 먼저 앱과 정한 뒤 구현합니다.
 
@@ -13,7 +15,7 @@
 | API | 용도 | 상태 |
 | --- | --- | --- |
 | `POST /api/v1/interact/text` | 앱 텍스트 교신. 1단계 미션(기분 텍스트)이 여기로 들어옴 | **구현 완료.** 11-09 로컬 백엔드와 연동 확인 |
-| `POST /api/v1/interact/photo` | 3단계 랜드마크 사진, 4단계 대중교통 승차·하차 사진 | **제안.** 3절 형식을 정하면 구현 |
+| `POST /api/v1/interact/photo` | 3단계 랜드마크 사진, 4단계 대중교통 승차·하차 사진 | **3단계 구현 (11-13).** 4단계는 미구현 |
 | `POST /api/v1/interact/voice` | 키링 음성. 앱은 쓰지 않음 | 구현 완료 (키링 쪽 녹음·전송은 HW 작업) |
 | `GET /health` | 서버 살아 있는지 확인 | 구현 완료 |
 
@@ -135,9 +137,9 @@ interface AiApiService {
 
 ---
 
-## 3. 사진 판정 — 제안 (미구현)
+## 3. 사진 판정 — 3단계 구현 (11-13), 4단계 미구현
 
-3단계(랜드마크)와 4단계(대중교통)를 사진으로 판정합니다. 판정 조건은 `docs/stage-mission-judgement.md` 3·4단계, 반응 대사는 `ai/prompts/missions.md`에 있습니다. **아래 형식에 앱이 동의하면 구현을 시작합니다.**
+3단계(랜드마크)와 4단계(대중교통)를 사진으로 판정합니다. 판정 조건은 `docs/stage-mission-judgement.md` 3·4단계, 반응 대사는 `ai/prompts/missions.md`에 있습니다. **11-13: 아래 요청 형식으로 3단계를 구현했습니다.** 응답은 텍스트 교신과 같은 형식이고 `audio_url`은 `null`입니다. 판정 성공이면 `mission_result: success`, 판독 실패(Gemini 오류)면 `fallback_triggered: true`이며 판정하지 않으므로 다시 찍을 수 있습니다. 3단계 판정은 하루 5회까지이고, 넘으면 안내 대사만 나옵니다.
 
 ### 미션별 판정 조건 (요약)
 

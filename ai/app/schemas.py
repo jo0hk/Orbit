@@ -217,6 +217,26 @@ class InteractResponse(BaseModel):
     mission_result: MissionResult = MissionResult.NONE
     # 대화 저장에 쓴 requestId. 요청에 없으면 서버가 발급합니다.
     request_id: str | None = None
+    # 사진 판정 전용. 4단계 승차 인증 뒤 "alighting"(하차 촬영 차례). 그 외 null.
+    next_step: str | None = None
+
+
+class LandmarkReport(BaseModel):
+    """3단계 랜드마크 사진의 Vision 판독 결과 (docs/stage-mission-judgement.md 3단계).
+
+    판정(성공·재시도)은 이 값으로 코드 규칙이 정합니다(app/core/mission_judge.py).
+    speech_* 는 같은 Gemini 호출에서 받은 대사 후보이고, 규칙에 맞지 않으면 쓰지 않습니다.
+    """
+
+    is_outdoor: bool = Field(description="야외 사진이면 true")
+    subject: str = Field(
+        description="주 피사체: building / structure / sculpture / signboard / person / other"
+    )
+    people_prominent: bool = Field(description="사람이 사진의 주인공처럼 크게 찍혔으면 true")
+    confidence: float = Field(description="subject 판독 확신 0~1")
+    description: str = Field(description="가장 눈에 띄는 것, 20자 이내 명사구. 사람 생김새 묘사 금지")
+    speech_success: str = Field("", description="칭찬 대사 후보")
+    speech_retry: str = Field("", description="다시 찍기 요청 대사 후보")
 
 
 class TextInteractRequest(BaseModel):

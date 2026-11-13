@@ -1,10 +1,11 @@
-"""1·2단계 미션 규칙 판정.
+"""1~3단계 미션 규칙 판정.
 
 규칙 근거: docs/stage-mission-judgement.md 2절
 
 LLM을 쓰지 않습니다. 같은 입력에 같은 판정이 나와야 결과 API 기록과
-회귀 테스트를 믿을 수 있기 때문입니다. 3·4단계(사진)는 Vision 판정이라
-업로드 경로가 정해진 뒤 추가합니다.
+회귀 테스트를 믿을 수 있기 때문입니다. 3단계(사진)는 Gemini Vision 이 낸
+구조화 판독 결과(LandmarkReport)를 받아 여기서 규칙으로 판정합니다(11-13).
+4단계(대중교통)는 아직 없습니다.
 
 호출 전제:
   - 고위험 발화는 pipeline이 먼저 가로챕니다. 여기로 오지 않습니다.
@@ -17,7 +18,7 @@ import re
 from dataclasses import dataclass
 
 from app.missions import ReasonCode
-from app.schemas import MissionResult, WeatherCategory
+from app.schemas import LandmarkReport, MissionResult, WeatherCategory
 
 STT_MIN_CONFIDENCE = 0.5  # 미만이면 판정하지 않고 예외 대화 5번(되묻기)
 
@@ -154,3 +155,28 @@ def judge_weather(
     if any(is_adjacent(api_category, r) for r in reported):
         return Judgement(MissionResult.SUCCESS, ReasonCode.WEATHER_NEAR)
     return Judgement(MissionResult.RETRY, ReasonCode.WEATHER_OPPOSITE)
+
+
+# ─────────────────────────────────────────────────────────────
+# 3단계 — 랜드마크 사진 (11-13)
+# ─────────────────────────────────────────────────────────────
+LANDMARK_SUBJECTS: frozenset[str] = frozenset({"building", "structure", "sculpture", "signboard"})
+LANDMARK_MIN_CONFIDENCE = 0.6
+
+
+def judge_landmark(report: LandmarkReport) -> Judgement:
+    """Vision 판독 결과로 3단계를 판정합니다. 순서가 곧 안내 우선순위입니다.
+
+    사람이 크게 찍힌 사진을 먼저 걸러 사물을 찍도록 안내합니다
+    (타인의 얼굴이 전송되지 않게 하기 위함, 판정 문서 3단계).
+    """
+    subject = (report.subject or "").strip().lower()
+    if report.people_prominent or subject == "person":
+        return Judgement(MissionResult.RETRY, ReasonCode.LANDMARK_PEOPLE, report.confidence)
+    if not report.is_outdoor:
+        return Judgement(MissionResult.RETRY, ReasonCode.LANDMARK_INDOOR, report.confidence)
+    if subject not in LANDMARK_SUBJECTS:
+        return Judgement(MissionResult.RETRY, ReasonCode.LANDMARK_SUBJECT, report.confidence)
+    if report.confidence < LANDMARK_MIN_CONFIDENCE:
+        return Judgement(MissionResult.RETRY, ReasonCode.LANDMARK_LOW_CONF, report.confidence)
+    return Judgement(MissionResult.SUCCESS, ReasonCode.LANDMARK_OK, report.confidence)

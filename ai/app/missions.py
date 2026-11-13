@@ -200,7 +200,7 @@ MISSIONS: tuple[Mission, ...] = (
             "치직- 랜드마크가 흐립니다. 건물이나 조형물을 다시 담아 주십시오. 오버",
         ),
         daily_judge_limit=5,
-        active=False,  # 사진 업로드 경로(앱 → AI 서버) 확정 후 활성화
+        active=True,  # 11-13 활성화: 앱 → AI 서버 POST /api/v1/interact/photo
         notes=(
             "카메라 촬영만 허용(갤러리 불가). 사진 원본은 판정 후 저장하지 않음",
             "사람이 주 피사체면 사물을 찍도록 안내",

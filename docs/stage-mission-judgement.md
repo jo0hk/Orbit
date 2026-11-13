@@ -1,6 +1,8 @@
 # 4단계 미션별 성공 조건과 판정 주체 (2학기 5주차)
 
-> 작성: AI/PM · 2026-10-01
+> 작성: AI/PM · 2026-10-01 · **개정 2026-11-13**
+
+> **11-13 개정 사항.** 3단계 판정을 구현했습니다(`ai/app/core/vision.py` `inspect_landmark`, `mission_judge.py` `judge_landmark`). Gemini 무료 한도 때문에 판독과 대사 후보를 **한 번의 호출**로 받도록 바꿨습니다(아래 "Vision 구조화 출력"). 성공 여부는 그대로 코드 규칙이 정합니다.
 > 대상: 백엔드 · 앱 · HW · AI
 > 근거: 2026-09-17 회의 안건 4 (노션 「회의내용 정리 / 20260917」), 프로젝트 메인 「4단계 탐사 시나리오」, 백엔드 5주차 구현 (`feature/backend` `469f82c`)
 
@@ -97,7 +99,7 @@
 | 실패(`success:false`) | 실내 사진, 피사체가 랜드마크가 아님, 신뢰도 미달 |
 | 판정 안 함 | Vision 호출 실패 → 비상 프로토콜, 결과 API 호출 안 함 (다시 찍을 수 있음) |
 
-Vision 구조화 출력 (판정용, 1학기 칭찬 엔진과 별도 호출):
+Vision 구조화 출력 (판정용). 11-13 구현에서는 별도 호출 대신 같은 호출에서 대사 후보 `speech_success`·`speech_retry`도 받습니다. 대사가 규칙(45자·치직-·끝맺음·금지어)을 어기면 `ai/prompts/missions.md`의 미리 쓴 대사를 씁니다:
 
 ```json
 {"is_outdoor": true, "subject": "building", "people_prominent": false, "confidence": 0.82, "description": "붉은 벽돌 교회 건물"}
