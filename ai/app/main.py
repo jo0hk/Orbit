@@ -14,11 +14,12 @@ import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
 
 from app.api.v1.interact import router as interact_router
 from app.config import get_settings
 from app.core.backend_client import BackendClient
-from app.core.pipeline import OrbitCore
+from app.core.pipeline import OUTPUT_DIR, OUTPUT_URL_PREFIX, OrbitCore
 
 
 @asynccontextmanager
@@ -44,6 +45,11 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Orbit AI Server", version="0.1.0", lifespan=lifespan)
 app.include_router(interact_router)
+
+# 응답 음성 다운로드 경로. 키링이 audio_url("outputs/<파일>.wav") 앞에
+# 서버 주소를 붙여 GET 합니다. 파일 이름은 매번 새로 만든 UUID입니다.
+OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+app.mount(f"/{OUTPUT_URL_PREFIX}", StaticFiles(directory=OUTPUT_DIR), name="outputs")
 
 
 @app.get("/health")

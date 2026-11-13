@@ -22,6 +22,7 @@ import time
 import uuid
 from contextlib import contextmanager
 from dataclasses import dataclass
+from pathlib import Path
 
 from app.core.backend_client import BackendClient, BackendContext
 from app.core.context import build_system_prompt
@@ -44,7 +45,10 @@ from app.schemas import (
 
 logger = logging.getLogger(__name__)
 
-OUTPUT_DIR = "outputs"
+# 응답 음성 저장 위치. main.py 가 이 폴더를 /outputs 로 공개하고,
+# 키링은 audio_url("outputs/<파일>.wav") 앞에 서버 주소를 붙여 내려받습니다.
+OUTPUT_DIR = Path(__file__).resolve().parents[2] / "outputs"  # ai/outputs
+OUTPUT_URL_PREFIX = "outputs"
 # 최근 대화는 아직 프롬프트에 쓰지 않으므로 조회하지 않습니다.
 # 프롬프트 주입 규칙을 정하면 값을 올리세요 (docs/conversation-log-spec.md).
 RECENT_TURNS_FOR_PROMPT = 0
@@ -221,12 +225,13 @@ class OrbitCore:
 
         if synthesize:
             with _timed(marks, "tts_ms"):
-                out_path = f"{OUTPUT_DIR}/{uuid.uuid4().hex}.mp3"
+                name = f"{uuid.uuid4().hex}.wav"  # 16kHz 모노 16bit WAV (키링 재생 형식)
                 try:
                     # 고위험 대응은 무전 노이즈 없이 평범한 목소리로 출력합니다.
-                    result.audio_url = await self.tts.synthesize(
-                        result.speech, out_path, plain=high_risk
+                    await self.tts.synthesize(
+                        result.speech, str(OUTPUT_DIR / name), plain=high_risk
                     )
+                    result.audio_url = f"{OUTPUT_URL_PREFIX}/{name}"
                 except Exception:
                     # 음성 합성(edge-tts, 외부 서비스)이 실패해도 대사·HW 신호는 내보내고
                     # 대화도 저장합니다. audio_url 이 null 이면 음성 없이 응답한 것입니다.
