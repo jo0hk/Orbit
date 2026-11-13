@@ -43,13 +43,14 @@ public class MissionService {
     }
 
     // 오늘의 미션 배정
+    // 오늘의 미션 배정
     @Transactional
     public MissionResponse assignTodayMission(Long userId) {
 
         LocalDate today =
                 LocalDate.now(ZoneId.of("Asia/Seoul"));
 
-        // 이미 오늘 배정된 미션이 있는지 확인
+        // 1. 오늘 이미 배정된 미션이 있으면 그대로 반환
         var existing = userMissionRepository
                 .findByUserIdAndAssignedDate(userId, today);
 
@@ -57,7 +58,7 @@ public class MissionService {
             return MissionResponse.from(existing.get());
         }
 
-        // 사용자 캐릭터 조회
+        // 2. 사용자 캐릭터 조회
         CharacterStatus character = characterRepository
                 .findByUserId(userId)
                 .orElseThrow(() ->
@@ -67,10 +68,34 @@ public class MissionService {
                         )
                 );
 
-        // 현재 단계 확인
+        // 3. 현재 캐릭터 단계
         Integer stage = character.getCurrentStage();
 
-        // 현재 단계에 해당하는 미션 조회
+        if (stage == null || stage < 1 || stage > 4) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "유효하지 않은 캐릭터 단계입니다."
+            );
+        }
+
+        // 4. 4단계에서는 연료 100% 이상이면 미션 배정 중단
+        if (stage == 4) {
+
+            Number fuelGauge = character.getFuelGauge();
+
+            if (fuelGauge == null) {
+                throw new ResponseStatusException(
+                        HttpStatus.CONFLICT,
+                        "연료 정보가 없습니다."
+                );
+            }
+
+            if (fuelGauge.doubleValue() >= 100) {
+                return null;
+            }
+        }
+
+        // 5. 현재 단계 미션 조회
         Mission mission = missionRepository
                 .findByStage(stage)
                 .orElseThrow(() ->
@@ -80,25 +105,7 @@ public class MissionService {
                         )
                 );
 
-        // Stage 4 최종 미션 완료 여부 확인
-        if (stage == 4) {
-
-            boolean alreadyCompleted =
-                    userMissionRepository
-                            .existsByUserIdAndMission_IdAndStatus(
-                                    userId,
-                                    mission.getId(),
-                                    MissionStatus.COMPLETED
-                            );
-
-            if (alreadyCompleted) {
-                throw new ResponseStatusException(
-                        HttpStatus.CONFLICT,
-                        "최종 미션을 이미 완료했습니다."
-                );
-            }
-        }
-        // 오늘의 미션 생성 및 저장
+        // 6. 오늘의 미션 생성
         UserMission userMission =
                 new UserMission(userId, mission);
 
@@ -108,25 +115,17 @@ public class MissionService {
     }
 
     // 오늘의 미션 조회
+    // 오늘의 미션 조회
     @Transactional(readOnly = true)
     public MissionResponse getCurrentMission(Long userId) {
 
         LocalDate today =
                 LocalDate.now(ZoneId.of("Asia/Seoul"));
 
-        UserMission userMission = userMissionRepository
-                .findByUserIdAndAssignedDate(
-                        userId,
-                        today
-                )
-                .orElseThrow(() ->
-                        new ResponseStatusException(
-                                HttpStatus.NOT_FOUND,
-                                "오늘 배정된 미션이 없습니다."
-                        )
-                );
-
-        return MissionResponse.from(userMission);
+        return userMissionRepository
+                .findByUserIdAndAssignedDate(userId, today)
+                .map(MissionResponse::from)
+                .orElse(null);
     }
 
     // 사용자 미션 진행 기록 조회
@@ -226,17 +225,22 @@ public class MissionService {
             );
         }
 
-        // 8. 미션 완료 처리
+// 8. 미션 완료 처리
         userMission.complete();
 
-        // 9. Stage 상승
+// 9. 캐릭터 단계 상승
         if (stage < 4) {
             character.setCurrentStage(stage + 1);
         }
 
-        // 10. DB 변경사항 저장
+// 10. 미션 성공 연료 보상
+        character.addFuel(10);
+
+// 11. DB 저장
         userMissionRepository.save(userMission);
         characterRepository.save(character);
+
+
 
         return MissionResponse.from(userMission);
     }

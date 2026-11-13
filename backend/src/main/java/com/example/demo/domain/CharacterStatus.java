@@ -46,4 +46,23 @@ public class CharacterStatus {
 
         this.intimacy += amount;
     }
+
+    // 연료 증가 (최대 100%)
+    public void addFuel(int amount) {
+
+        if (amount < 0) {
+            throw new IllegalArgumentException(
+                    "연료 증가량은 0 이상이어야 합니다."
+            );
+        }
+
+        if (this.fuelGauge == null) {
+            this.fuelGauge = 0;
+        }
+
+        this.fuelGauge = (int) Math.min(
+                100L,
+                (long) this.fuelGauge + amount
+        );
+    }
 }
