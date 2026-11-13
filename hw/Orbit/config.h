@@ -3,6 +3,8 @@
 
 #define WIFI_SSID             "kys"
 #define WIFI_PASSWORD         "06120814"
+#define WIFI_SSID             "wifi_name"
+#define WIFI_PASSWORD         "wifi_password"
 
 // --- MQTT 브로커 설정 ---
 #define MQTT_SERVER_IP        "mqtt_ip"
@@ -39,7 +41,7 @@
 // --- AI 서버 (키링 음성 교신: POST /api/v1/interact/voice) ---
 #define AI_SERVER_HOST        "ai_server_ip"
 #define AI_SERVER_PORT        8000
-#define AI_HTTP_TIMEOUT_MS    20000   // STT+LLM+TTS 대기. AI 실측값 받으면 조정
+#define AI_HTTP_TIMEOUT_MS    30000   // STT+LLM+TTS 대기. AI 실측값 받으면 조정
 
 // --- 오디오 / 광센서 핀 ---
 #define MIC_SCK_PIN           32      // INMP441 (VDD 3.3V, L/R=GND)
@@ -64,6 +66,8 @@
 // --- 더블탭 (음성 교신 시작/종료) ---
 #define DOUBLE_TAP_MAX_PRESS_MS  300  // 이보다 짧게 누르면 '탭'
 #define DOUBLE_TAP_GAP_MS        500  // 첫 탭을 뗀 뒤 이 시간 안에 두 번째 탭
+#define REC_SETTLE_MS         150     // 시작음 끝난 뒤 이만큼 버리고 소음 측정 (시작음 잔향 제외)
+#define REC_SPEECH_MIN_MS     200     // 이 시간 이상 계속 커야 말소리로 인정 (탭·충격음 무시)
 
 #define PET_MIN_PRESS_MS         500  // 이 시간 이상 누르면 쓰다듬기 반응 (짧은 탭은 반응 없음)
 #if PET_MIN_PRESS_MS <= DOUBLE_TAP_MAX_PRESS_MS
@@ -72,7 +76,8 @@
 
 // --- 스피커 ---
 #define AUDIO_TONE_VOLUME     0.3f
-#define AUDIO_PLAY_VOLUME     0.8f    // 응답 음성 볼륨 (0~1)
+#define AUDIO_PLAY_VOLUME     1.0f    // 응답 음성 볼륨 (0~1)
+#define AUDIO_PLAY_GAIN       2.0f    // 응답 음성 증폭 배율 (1.0 = 원음)
 #define AUDIO_STREAM_TIMEOUT_MS 3000  // 응답 음성 수신이 이만큼 끊기면 재생 중단
 
 #endif
