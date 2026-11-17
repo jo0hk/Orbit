@@ -44,6 +44,7 @@ import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 import retrofit2.http.GET
 import retrofit2.http.Query
+import retrofit2.http.Path
 import kotlin.random.Random
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.MultipartBody
@@ -66,10 +67,14 @@ data class MoodResponse(val mood: String)
 
 data class ConversationResponseDto(
     val id: Long,
-    val userId: Long,
-    val speaker: String,
-    val message: String,
-    val createdAt: String
+    val userId: Long? = null,
+    val speaker: String? = null,
+    val message: String? = null,
+    val emotion: String? = null,
+    val channel: String? = null,
+    val stage: Int? = null,
+    val requestId: String? = null,
+    val createdAt: String? = null
 )
 
 // ── Retrofit ──────────────────────────────────────────────────────────────────
@@ -80,7 +85,8 @@ data class MissionResponse(
     val title: String? = null,
     val description: String? = null,
     val missionType: String? = null,
-    val status: String? = null
+    val status: String? = null,
+    val assignedDate: String? = null
 )
 
 interface OrbitApiService {
@@ -88,8 +94,22 @@ interface OrbitApiService {
     suspend fun getCurrentMood(): MoodResponse
 
     @GET("api/missions/current")
-    suspend fun getCurrentMission(@Query("userId") userId: Long): MissionResponse
+    suspend fun getCurrentMission(@Query("userId") userId: Long): MissionResponse?
+
+    @GET("api/character/{id}")
+    suspend fun getCharacter(@Path("id") id: Long): CharacterResponse
+
+    @GET("api/conversations/{userId}/recent")
+    suspend fun getConversations(
+        @Path("userId") userId: Long,
+        @Query("limit") limit: Int = 10
+    ): List<ConversationResponseDto>
 }
+
+data class CharacterResponse(
+    val currentStage: Int? = null,
+    val fuelGauge: Int? = null
+)
 object RetrofitClient {
     val apiService: OrbitApiService by lazy {
         Retrofit.Builder()
@@ -177,15 +197,46 @@ fun SplashScreen(onFinished: () -> Unit) {
         }
     }
 }
+
 @Composable
 fun OrbitMainScreen() {
+
 
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
 
     val userId = 1L
+    var notifiedMissionId by remember { mutableStateOf<Long?>(null) } // 같은 미션 팝업 중복 방지
+    var lastConvId by remember { mutableStateOf<Long?>(null) } // 마지막으로 확인한 대화 id
     var serverMission by remember { mutableStateOf<MissionResponse?>(null) }
+    var characterStage by remember { mutableStateOf<Int?>(null) }
+    val characterId = 2L
+    val prefs = remember { context.getSharedPreferences("orbit_prefs", android.content.Context.MODE_PRIVATE) }
+    var startDate by remember { mutableStateOf(prefs.getString("start_assigned_date", null)) }
 
+    val dayNumber: Int = remember(serverMission?.assignedDate, startDate) {
+        val today = serverMission?.assignedDate
+        val start = startDate
+        if (today == null || start == null) 1
+        else try {
+            val fmt = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US)
+            val diff = fmt.parse(today.take(10))!!.time - fmt.parse(start.take(10))!!.time
+            (diff / (1000L * 60 * 60 * 24)).toInt() + 1
+        } catch (e: Exception) { 1 }
+    }
+
+    val todayStr = remember {
+        java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).format(java.util.Date())
+    }
+    val isToday = serverMission?.assignedDate?.startsWith(todayStr) == true
+
+    // ACTIVE(진행 중) / DONE(미션 완료) / NONE(오늘의 미션 없음)
+    val missionUiState = when {
+        serverMission == null -> "NONE"
+        serverMission?.status == "COMPLETED" && isToday -> "DONE"
+        serverMission?.status == "COMPLETED" -> "NONE"
+        else -> "ACTIVE"
+    }
     // 기본 상태
     var currentMood by remember { mutableStateOf("calm") }
     var fuelLevel by remember { mutableFloatStateOf(0.15f) }
@@ -214,8 +265,10 @@ fun OrbitMainScreen() {
     fun handleAiResponse(res: AiResponse) {
         res.speech?.let { orbitResponse = it }
         if (res.highRiskDetected == true) showCrisisPopup = true
-        if (res.missionResult == "success") showMissionComplete = true
-        // retry / deferred / none 은 "실패"가 아니므로 대사만 표시
+        if (res.missionResult == "success") {
+            notifiedMissionId = serverMission?.missionId
+            showMissionComplete = true
+        }
     }
 
     // 카메라 런처 (원본 화질, 3단계 + 4단계 승차/하차)
@@ -275,20 +328,93 @@ fun OrbitMainScreen() {
     }
 
     LaunchedEffect(Unit) {
+        var initialized = false // 첫 조회는 기준값만 저장 (앱 켤 때 이미 완료된 미션으로 팝업이 뜨지 않게)
+        var prevStatus: String? = null
+        var prevMissionId: Long? = null
+        var prevStage: Int? = null
+
         while (true) {
+            var fire = false
+
+            // 1) 오빗 기분
             try {
                 val moodRes = RetrofitClient.apiService.getCurrentMood()
                 currentMood = moodRes.mood.trim().lowercase()
             } catch (e: Exception) {
                 android.util.Log.e("ORBIT_MOOD", "mood 조회 실패: ${e.message}")
             }
+
+            // 2) 오늘 미션 (status 변화 감지)
             try {
                 val m = RetrofitClient.apiService.getCurrentMission(userId)
                 serverMission = m
-                isStage4 = (m.stage == 4)
+                isStage4 = (m != null && m.stage == 4 && m.status != "COMPLETED")
+                if (m != null && startDate == null && m.assignedDate != null) {
+                    startDate = m.assignedDate
+                    prefs.edit().putString("start_assigned_date", m.assignedDate).apply()
+                }
+                if (m != null) {
+                    if (initialized && m.status == "COMPLETED" && prevStatus != "COMPLETED" && prevMissionId == m.missionId) {
+                        fire = true
+                    }
+                    prevStatus = m.status
+                    prevMissionId = m.missionId
+                }
+            } catch (e: retrofit2.HttpException) {
+                if (e.code() == 404) {
+                    serverMission = null
+                    isStage4 = false
+                }
+                android.util.Log.e("ORBIT_MISSION", "미션 조회 HTTP ${e.code()}")
             } catch (e: Exception) {
                 android.util.Log.e("ORBIT_MISSION", "미션 조회 실패: ${e.message}")
             }
+
+            // 3-1) 캐릭터 (연료, 단계)
+            try {
+                val c = RetrofitClient.apiService.getCharacter(characterId)
+                c.fuelGauge?.let { fuelLevel = (it / 100f).coerceIn(0f, 1f) }
+                val st = c.currentStage
+                if (st != null) {
+                    characterStage = st
+                    val ps = prevStage
+                    if (initialized && ps != null && st > ps) fire = true
+                    prevStage = st
+                }
+            } catch (e: Exception) {
+                android.util.Log.e("ORBIT_CHAR", "캐릭터 조회 실패: ${e.message}")
+            }
+
+            // 3-2) 키링(음성) 대화의 오빗 답변 표시
+            try {
+                val list = RetrofitClient.apiService.getConversations(userId)
+                val newest = list.maxByOrNull { it.id }
+                if (newest != null) {
+                    if (!initialized) {
+                        lastConvId = newest.id // 첫 조회는 기준만 저장 (옛 대화가 갑자기 뜨지 않게)
+                    } else {
+                        val fresh = list
+                            .filter { it.id > (lastConvId ?: Long.MAX_VALUE) }
+                            .sortedBy { it.id }
+                        val orbitVoice = fresh.lastOrNull {
+                            it.speaker == "ORBIT" && it.channel == "VOICE"
+                        }
+                        if (orbitVoice?.message != null) orbitResponse = orbitVoice.message
+                        lastConvId = newest.id
+                    }
+                }
+            } catch (e: Exception) {
+                android.util.Log.e("ORBIT_CONV", "대화 조회 실패: ${e.message}")
+            }
+
+            // 4) 팝업
+            val mid = serverMission?.missionId
+            if (fire && mid != null && notifiedMissionId != mid) {
+                notifiedMissionId = mid
+                showMissionComplete = true
+            }
+
+            initialized = true
             delay(3000L)
         }
     }
@@ -358,7 +484,6 @@ fun OrbitMainScreen() {
                     Button(
                         onClick = {
                             showMissionComplete = false
-                            fuelLevel = (fuelLevel + 0.03f).coerceAtMost(1.0f)
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFFD27A)),
                         shape = RoundedCornerShape(12.dp)
@@ -402,23 +527,13 @@ fun OrbitMainScreen() {
                         modifier = Modifier.fillMaxWidth()
                     )
                     Spacer(modifier = Modifier.height(24.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        OutlinedButton(
-                            onClick = { showCrisisPopup = false },
-                            border = BorderStroke(1.dp, Color(0xFFFF6B5E)),
-                            shape = RoundedCornerShape(12.dp)
-                        ) {
-                            Text("괜찮아요", color = Color(0xFFFF6B5E), fontWeight = FontWeight.Bold)
-                        }
-                        Button(
-                            onClick = {
-                                showCrisisPopup = false
-                            },
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF6B5E)),
-                            shape = RoundedCornerShape(12.dp)
-                        ) {
-                            Text("힘들어요", color = Color.White, fontWeight = FontWeight.Bold)
-                        }
+                    Button(
+                        onClick = { showCrisisPopup = false },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF6B5E)),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("확인", color = Color.White, fontWeight = FontWeight.Bold)
                     }
                 }
             }
@@ -524,20 +639,7 @@ fun OrbitMainScreen() {
                     Text("우주선 통신망 · 동기화 중", color = accentColor, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                 }
                 Text(
-                    "지구 탐사 ${
-                        run {
-                            val prefs = LocalContext.current.getSharedPreferences("orbit_prefs", android.content.Context.MODE_PRIVATE)
-                            val firstLaunch = prefs.getLong("first_launch", 0L).let {
-                                if (it == 0L) {
-                                    val now = System.currentTimeMillis()
-                                    prefs.edit().putLong("first_launch", now).apply()
-                                    now
-                                } else it
-                            }
-                            val diff = System.currentTimeMillis() - firstLaunch
-                            (diff / (1000 * 60 * 60 * 24)).toInt() + 1
-                        }
-                    }일차",
+                    "지구 탐사 ${dayNumber}일차",
                     color = Color(0xFF8A97AC),
                     fontSize = 12.sp
                 )
@@ -631,35 +733,58 @@ fun OrbitMainScreen() {
             Spacer(modifier = Modifier.height(12.dp))
 
             // 미션 위젯
+            val widgetColor = when (missionUiState) {
+                "DONE" -> Color(0xFFFFD27A)
+                "NONE" -> Color(0xFF8A97AC)
+                else -> accentColor
+            }
+            val badgeText = when (missionUiState) {
+                "DONE" -> "미션 완료"
+                "NONE" -> "대기 중"
+                else -> "진행 중"
+            }
+
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(containerColor = Color(0xFF0A1628).copy(alpha = 0.9f)),
                 shape = RoundedCornerShape(12.dp),
-                border = BorderStroke(1.dp, accentColor.copy(alpha = 0.25f))
+                border = BorderStroke(1.dp, widgetColor.copy(alpha = 0.35f))
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(accentColor))
+                    Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(widgetColor))
                     Spacer(modifier = Modifier.width(10.dp))
                     Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "STAGE ${serverMission?.stage ?: "-"}",
-                            color = accentColor.copy(alpha = 0.6f),
-                            fontSize = 10.sp,
-                            fontFamily = FontFamily.Monospace,
-                            letterSpacing = 1.sp
-                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "STAGE ${characterStage ?: serverMission?.stage ?: "-"}",
+                                color = widgetColor.copy(alpha = 0.6f),
+                                fontSize = 10.sp,
+                                fontFamily = FontFamily.Monospace,
+                                letterSpacing = 1.sp
+                            )
+                            Text(
+                                text = badgeText,
+                                color = widgetColor,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(
-                            text = serverMission?.title ?: "오늘의 미션을 불러오는 중...",
+                            text = if (missionUiState == "NONE") "오늘의 미션 없음" else (serverMission?.title ?: ""),
                             color = Color(0xFFE6EDF6),
                             fontSize = 13.sp,
                             fontWeight = FontWeight.Bold
                         )
                         Text(
-                            text = serverMission?.description ?: "",
+                            text = if (missionUiState == "NONE") "내일 새로운 미션이 배정돼요." else (serverMission?.description ?: ""),
                             color = Color(0xFF8A97AC),
                             fontSize = 11.sp,
                             lineHeight = 16.sp
@@ -688,7 +813,7 @@ fun OrbitMainScreen() {
                     }
                 }
             }
-            if (isStage4) {
+            if (isStage4 && missionUiState == "ACTIVE") {
                 Card(
                     modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
                     colors = CardDefaults.cardColors(containerColor = Color(0xFF0A1628).copy(alpha = 0.9f)),
