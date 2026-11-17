@@ -5,6 +5,7 @@
 #include <WiFi.h>
 #include "config.h"
 
+void audioOutEnd();     // 딥슬립 전: I2S 해제 + 핀 LOW 고정
 bool audioOutBegin();   // MAX98357A I2S 초기화 (I2S_NUM_1). 대기 중엔 무음 출력
 
 // 효과음 (블로킹, 음성 태스크에서만 호출)

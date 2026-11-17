@@ -181,8 +181,20 @@ static bool playAudioUrl(const String& url) {
   return ok;
 }
 
+// Wi-Fi 연결 대기. 연결되면 true, 시간 초과·더블탭 취소면 false
+static bool waitWiFi(uint32_t ms) {
+  if (WiFi.status() == WL_CONNECTED) return true;
+  Serial.println("[Voice] Wi-Fi 연결 대기...");
+  unsigned long t0 = millis();
+  while (WiFi.status() != WL_CONNECTED) {
+    if (millis() - t0 >= ms || stopRequested) return false;
+    vTaskDelay(pdMS_TO_TICKS(100));
+  }
+  return true;
+}
+
 static void runSession() {
-  if (WiFi.status() != WL_CONNECTED) { failSession("Wi-Fi 미연결"); return; }
+  if (!waitWiFi(VOICE_WIFI_WAIT_MS)) { failSession("Wi-Fi 미연결"); return; }
 
   // 1) 녹음
   state = VOICE_LISTENING;
@@ -230,6 +242,12 @@ static void runSession() {
 }
 
 static void voiceTaskFn(void*) {
+  // 준비 신호: Wi-Fi가 붙으면 1회 "띠-링" (이미 더블탭으로 교신이 시작됐으면 생략)
+  if (waitWiFi(VOICE_READY_WAIT_MS) && state == VOICE_IDLE) {
+    Serial.println("[Voice] 준비 완료 신호");
+    audioOutTone(660, 80);
+    audioOutTone(990, 120);
+  }
   for (;;) {
     ulTaskNotifyTake(pdTRUE, portMAX_DELAY);   // 더블탭 대기
     stopRequested = false;
@@ -277,6 +295,13 @@ void voiceOnDoubleTap() {
     case VOICE_PROCESSING:
       break;                     // 응답 대기 중엔 무시
   }
+}
+
+void voiceEnd() {
+  if (!ready) return;
+  ready = false;      // 이후 더블탭 무시
+  audioOutEnd();
+  audioInEnd();
 }
 
 bool voiceIsBusy() {

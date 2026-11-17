@@ -1,4 +1,5 @@
 #include "motion.h"
+#include "config.h"
 #include <Wire.h>
 
 const int MPU_I2C_ADDR = 0x68;
@@ -9,9 +10,13 @@ static unsigned long lastShakeActionTime = 0;
 const unsigned long SHAKE_WINDOW = 1000;
 
 // 만보기 임계치
-const float STEP_PEAK_THRESHOLD = 1.05;
-const float STEP_VALLEY_THRESHOLD = 0.93;
-const unsigned long MIN_STEP_INTERVAL = 180;
+const float STEP_PEAK_THRESHOLD = 1.15;          // 1.05 -> 1.15 (살짝 건드림 무시)
+const float STEP_VALLEY_THRESHOLD = 0.85;        // 0.93 -> 0.85
+const unsigned long MIN_STEP_INTERVAL = 250;     // 180 -> 250ms
+const int STEP_CONFIRM_COUNT = 4;                // 연속 4걸음부터 인정
+const unsigned long STEP_RHYTHM_GAP = 2000;      // 걸음 사이가 이보다 길면 연속 끊김
+const unsigned long SHAKE_STEP_BLOCK_MS = 1000;  // 흔들기 감지 후 걸음 무시 시간
+static int pendingSteps = 0;                     // 확정 전 걸음 후보 수
 
 enum StepState { WAITING_FOR_PEAK, WAITING_FOR_VALLEY };
 static StepState stepState = WAITING_FOR_PEAK;
@@ -68,9 +73,9 @@ void setupMotion() {
       int16_t rawAx = Wire.read() << 8 | Wire.read();
       int16_t rawAy = Wire.read() << 8 | Wire.read();
       int16_t rawAz = Wire.read() << 8 | Wire.read();
-      float ax = rawAx / 8192.0;
-      float ay = rawAy / 8192.0;
-      float az = rawAz / 8192.0;
+      float ax = rawAx / 8192.0 - ACC_OFFSET_X_G;
+      float ay = rawAy / 8192.0 - ACC_OFFSET_Y_G;
+      float az = rawAz / 8192.0 - ACC_OFFSET_Z_G;
       float m = sqrt(ax * ax + ay * ay + az * az);
       sumMag += m;
       if (m < minMag) minMag = m;
@@ -115,9 +120,9 @@ MotionResult updateMotion() {
     int16_t rawGy = Wire.read() << 8 | Wire.read();
     int16_t rawGz = Wire.read() << 8 | Wire.read();
 
-    float ax = (rawAx / 8192.0) * accelScaleOffset;
-    float ay = (rawAy / 8192.0) * accelScaleOffset;
-    float az = (rawAz / 8192.0) * accelScaleOffset;
+    float ax = (rawAx / 8192.0 - ACC_OFFSET_X_G) * accelScaleOffset;
+    float ay = (rawAy / 8192.0 - ACC_OFFSET_Y_G) * accelScaleOffset;
+    float az = (rawAz / 8192.0 - ACC_OFFSET_Z_G) * accelScaleOffset;
 
     float gx = rawGx / 65.5;
     float gy = rawGy / 65.5;
@@ -149,6 +154,7 @@ MotionResult updateMotion() {
 
     // 1. 흔들기 감지
     if (mag > 2.3 && totalGyroSpeed > 250.0) {
+      pendingSteps = 0;                 // 흔들림 시작 -> 쌓이던 걸음 후보 버림
       if (now - lastShakeActionTime > 120) {
         shakeDirectionFlips++;
         lastShakeActionTime = now;
@@ -158,6 +164,12 @@ MotionResult updateMotion() {
     if (shakeDirectionFlips >= 3) {
       res.isShaken = true;
       shakeDirectionFlips = 0;
+    }
+
+    // 흔드는 중에는 걸음 판정 안 함
+    if (now - lastShakeActionTime < SHAKE_STEP_BLOCK_MS) {
+      stepState = WAITING_FOR_PEAK;
+      return res;
     }
 
     // 2. 걸음 수 감지
@@ -171,11 +183,15 @@ MotionResult updateMotion() {
 
       case WAITING_FOR_VALLEY:
         if (mag < STEP_VALLEY_THRESHOLD) {
-          totalStepCount++;
+          if (now - lastStepTime > STEP_RHYTHM_GAP) pendingSteps = 0;   // 연속 끊김
           lastStepTime = now;
           stepState = WAITING_FOR_PEAK;
-          res.stepDetected = true;
-          res.currentSteps = totalStepCount;
+          pendingSteps++;
+          if (pendingSteps >= STEP_CONFIRM_COUNT) {
+            totalStepCount += (pendingSteps == STEP_CONFIRM_COUNT) ? STEP_CONFIRM_COUNT : 1;
+            res.stepDetected = true;
+            res.currentSteps = totalStepCount;
+          }
         } else if (now - peakTime > 900) {
           stepState = WAITING_FOR_PEAK;
         }

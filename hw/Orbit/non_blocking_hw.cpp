@@ -1,5 +1,6 @@
 #include "non_blocking_hw.h"
 #include "stage_manager.h"
+#include <driver/gpio.h>
 
 static OrbitLED* globalLed = nullptr;
 
@@ -15,6 +16,7 @@ static uint8_t vibeStep = 0;
 
 void setupNonBlockingHW(OrbitLED* ledPtr) {
   globalLed = ledPtr;
+  gpio_hold_dis((gpio_num_t)VIBE_PIN);   // 슬립에서 깨어났으면 고정 해제
   pinMode(VIBE_PIN, OUTPUT);
   digitalWrite(VIBE_PIN, LOW);
 }

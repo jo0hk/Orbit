@@ -53,10 +53,10 @@ static void applyLed(const String& key) {
   else if (key == "purple")                   triggerFadeEffect(180, 0, 255, 1200);
   else if (key == "blue" || key == "dim_blue") triggerFadeEffect(0, 50, 150, 1000);
   else if (key == "yellow")                   triggerFadeEffect(255, 200, 0, 1500);
-  else if (key == "pink")                     fadeStageColor(1, 1200);
-  else if (key == "orange")                   fadeStageColor(2, 1200);
-  else if (key == "lime")                     fadeStageColor(3, 1200);
-  else if (key == "green")                    fadeStageColor(4, 1200);
+  else if (key == "teal")                     fadeStageColor(1, 1200);   // 청록
+  else if (key == "mint")                     fadeStageColor(2, 1200);   // 민트
+  else if (key == "orange")                   fadeStageColor(3, 1200);   // 주황
+  else if (key == "pink")                     fadeStageColor(4, 1200);   // 핑크
   else if (key == "skyblue")                  fadeStageColor(0, 1200);
   else Serial.printf("[LOG_WARN] 미지원 LED 값: %s\n", key.c_str());
 }

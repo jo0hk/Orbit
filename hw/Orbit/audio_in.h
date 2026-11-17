@@ -9,6 +9,7 @@ enum RecordResult {
   REC_ERROR        // 마이크·파일 오류 (파일 삭제됨)
 };
 
+void audioInEnd();     // 딥슬립 전: I2S 해제 + 핀 LOW 고정
 bool audioInBegin();   // INMP441 I2S 초기화 (I2S_NUM_0)
 
 // path에 16kHz 16bit 모노 WAV로 녹음.

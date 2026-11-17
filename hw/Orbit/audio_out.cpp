@@ -1,14 +1,29 @@
 #include "audio_out.h"
 #include <driver/i2s.h>
 #include <esp_idf_version.h>
+#include <driver/gpio.h>
 
 #define SPK_PORT   I2S_NUM_1   // 마이크(I2S_NUM_0)와 분리
 #define FRAMES     256
 
 static bool spkReady = false;
 static int16_t outBuf[FRAMES * 2];   // 스테레오 프레임
+static const gpio_num_t SPK_PINS[] = { (gpio_num_t)SPK_BCLK_PIN, (gpio_num_t)SPK_LRC_PIN, (gpio_num_t)SPK_DIN_PIN };
+
+// 딥슬립 전: I2S 해제 + 핀 LOW 고정 (슬립 중 잡음·대기 전류 방지)
+void audioOutEnd() {
+  i2s_driver_uninstall(SPK_PORT);
+  spkReady = false;
+  for (gpio_num_t p : SPK_PINS) {
+    gpio_reset_pin(p);
+    gpio_set_direction(p, GPIO_MODE_OUTPUT);
+    gpio_set_level(p, 0);
+    gpio_hold_en(p);
+  }
+}
 
 bool audioOutBegin() {
+  for (gpio_num_t p : SPK_PINS) gpio_hold_dis(p);   // 슬립에서 깨어났으면 핀 고정 해제
   i2s_config_t cfg = {};
   cfg.mode = (i2s_mode_t)(I2S_MODE_MASTER | I2S_MODE_TX);
   cfg.sample_rate = REC_SAMPLE_RATE;

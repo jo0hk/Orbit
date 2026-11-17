@@ -6,6 +6,8 @@
 #include "status_builder.h"
 #include "stage_manager.h"
 #include "motion.h"
+#include "voice_client.h"
+#include <driver/gpio.h>
 
 extern OrbitFace face;
 extern OrbitLED orbit;
@@ -46,6 +48,7 @@ void enterOrbitDeepSleep() {
 
   pinMode(VIBE_PIN, OUTPUT);
   digitalWrite(VIBE_PIN, LOW);
+  gpio_hold_en((gpio_num_t)VIBE_PIN);   // 슬립 중 LOW 고정 (GPIO12는 부팅 시 LOW 필요)
 
   Serial.flush();
 
@@ -59,5 +62,7 @@ void enterOrbitDeepSleep() {
   // OLED 자는 눈 애니메이션 후 패널 전원 끄기
   face.playSleepAnimation();
 
+  voiceEnd();                  // I2S 해제 + 핀 LOW 고정
+  gpio_deep_sleep_hold_en();   // 딥슬립 중에도 고정 유지
   esp_deep_sleep_start();
 }
