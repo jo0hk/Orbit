@@ -1,6 +1,6 @@
 
 package com.example.demo.service;
-import java.time.Clock;
+
 import java.time.LocalDateTime;
 import com.example.demo.domain.CharacterRepository;
 import com.example.demo.domain.CharacterStatus;
@@ -11,7 +11,7 @@ import com.example.demo.entity.UserMission;
 import com.example.demo.entity.MissionStatus;
 import com.example.demo.repository.MissionRepository;
 import com.example.demo.repository.UserMissionRepository;
-
+import java.time.Clock;
 import lombok.RequiredArgsConstructor;
 
 import org.springframework.data.domain.Sort;
@@ -21,7 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDate;
-import java.time.ZoneId;
+
 import java.util.List;
 
 @Service
@@ -161,9 +161,7 @@ public class MissionService {
         }
 
         Long userId = request.userId();
-
-        LocalDate today =
-                LocalDate.now(ZoneId.of("Asia/Seoul"));
+        LocalDate today = LocalDate.now(clock);
 
         // 2. 오늘 배정된 미션 조회
         UserMission userMission = userMissionRepository
