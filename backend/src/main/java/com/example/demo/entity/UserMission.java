@@ -1,3 +1,4 @@
+
 package com.example.demo.entity;
 
 import jakarta.persistence.*;
@@ -36,20 +37,26 @@ public class UserMission {
     protected UserMission() {
     }
 
-    public UserMission(Long userId, Mission mission) {
+    // 미션 생성 시 날짜를 외부에서 전달받음
+    public UserMission(
+            Long userId,
+            Mission mission,
+            LocalDate assignedDate
+    ) {
         this.userId = userId;
         this.mission = mission;
         this.status = MissionStatus.IN_PROGRESS;
-        this.assignedDate = LocalDate.now();
+        this.assignedDate = assignedDate;
     }
 
-    public void complete() {
+    // 미션 완료 처리
+    public void complete(LocalDateTime completedAt) {
         if (this.status == MissionStatus.COMPLETED) {
             return;
         }
 
         this.status = MissionStatus.COMPLETED;
-        this.completedAt = LocalDateTime.now();
+        this.completedAt = completedAt;
     }
 
     public Long getId() {
