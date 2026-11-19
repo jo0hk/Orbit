@@ -66,6 +66,8 @@ static void applyVibe(const String& key) {
   if (key == "short" || key == "short_pulse")            triggerVibration(VIBE_SHORT);
   else if (key == "long" || key == "soft_continuous")    triggerVibration(VIBE_LONG);
   else if (key == "double" || key == "strong_double")    triggerVibration(VIBE_DOUBLE);
+  else if (key == "two_short_taps")                      triggerVibration(VIBE_TWO_TAPS);
+  else if (key == "calm_wave")                           triggerVibration(VIBE_CALM_WAVE);
   else Serial.printf("[LOG_WARN] 미지원 vibe 값: %s\n", key.c_str());
 }
 

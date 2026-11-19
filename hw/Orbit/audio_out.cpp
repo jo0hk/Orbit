@@ -126,6 +126,24 @@ static bool skipBytes(WiFiClient& in, uint32_t len) {
 static uint32_t le32(const uint8_t* p) { return p[0] | (p[1] << 8) | (p[2] << 16) | ((uint32_t)p[3] << 24); }
 static uint16_t le16(const uint8_t* p) { return p[0] | (p[1] << 8); }
 
+// 펌웨어에 넣어 둔 16kHz 모노 PCM 재생 (비상 음성용). *stopFlag가 true면 중단
+bool audioOutPlayPcm(const int16_t* pcm, size_t samples, volatile bool* stopFlag) {
+  if (!spkReady || !pcm) return false;
+  size_t i = 0;
+  while (i < samples) {
+    if (stopFlag && *stopFlag) break;
+    size_t n = min((size_t)FRAMES, samples - i);
+    for (size_t k = 0; k < n; k++) {
+      int16_t s = amplify(pcm[i + k]);
+      outBuf[2 * k] = s; outBuf[2 * k + 1] = s;   // 모노 -> 양쪽
+    }
+    if (!writeFrames(n)) return false;
+    i += n;
+  }
+  i2s_zero_dma_buffer(SPK_PORT);
+  return true;
+}
+
 bool audioOutPlayWav(WiFiClient& in, volatile bool* stopFlag) {
   if (!spkReady) return false;
 

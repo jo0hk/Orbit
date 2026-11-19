@@ -6,6 +6,14 @@
 #include "config.h"
 #include "audio_in.h"
 #include "audio_out.h"
+
+// 비상 음성 헤더(emergency_voice.h)가 폴더에 있으면 자동으로 사용
+#if __has_include("emergency_voice.h")
+#include "emergency_voice.h"   // EMERGENCY_PCM[], EMERGENCY_PCM_LEN (16kHz 모노)
+#define HAS_EMERGENCY_VOICE 1
+#else
+#define HAS_EMERGENCY_VOICE 0
+#endif
 #include "light_sensor.h"
 #include "hardware_action.h"
 #include "json_pipeline.h"
@@ -25,6 +33,7 @@ enum UiEventType : uint8_t {
   UI_APPLY,       // 응답 JSON 적용
   UI_NO_SPEECH,   // 말 없음 / 취소
   UI_ERROR,       // 실패
+  UI_EMERGENCY,   // 통신 장애 비상 프로토콜
   UI_DONE         // 세션 종료
 };
 
@@ -55,6 +64,18 @@ static void failSession(const char* reason) {
   Serial.printf("[Voice] 실패: %s\n", reason);
   postUi(UI_ERROR);
   audioOutTone(220, 300);
+}
+
+// 서버에 닿지 못한 실패: 비상 프로토콜 (EXPR_SAD / blue / short_pulse + 저장된 비상 음성)
+static void failServer(const char* reason) {
+  Serial.printf("[Voice] 서버 장애: %s -> 비상 응답\n", reason);
+  postUi(UI_EMERGENCY);
+  state = VOICE_PLAYING;   // 더블탭으로 중단 가능
+#if HAS_EMERGENCY_VOICE
+  audioOutPlayPcm(EMERGENCY_PCM, EMERGENCY_PCM_LEN, &stopRequested);
+#else
+  audioOutTone(220, 300);  // 비상 음성 파일이 오기 전까지 효과음
+#endif
 }
 
 // ── HTTP: multipart 업로드 후 응답 본문 수신. 반환: HTTP 상태코드 또는 음수(통신 오류) ──
@@ -193,8 +214,13 @@ static bool waitWiFi(uint32_t ms) {
   return true;
 }
 
+// 다시 보내 볼 만한 실패인지 (연결·전송 실패, 서버 5xx). 시간 초과(-4)는 이미 30초 기다려서 제외
+static bool isRetryable(int code) {
+  return code == -1 || code == -2 || code == -3 || code >= 500;
+}
+
 static void runSession() {
-  if (!waitWiFi(VOICE_WIFI_WAIT_MS)) { failSession("Wi-Fi 미연결"); return; }
+  if (!waitWiFi(VOICE_WIFI_WAIT_MS)) { failServer("Wi-Fi 미연결"); return; }
 
   // 1) 녹음
   state = VOICE_LISTENING;
@@ -216,22 +242,27 @@ static void runSession() {
   // 2) AI 서버 전송
   state = VOICE_PROCESSING;
   postUi(UI_THINKING);
-  int lux = lightReadLux();
+  int lux = LIGHT_SEND_ENABLED ? lightReadLux() : -1;   // -1이면 lux 필드 생략
   String requestId = devId + "-" + String((uint32_t)esp_random(), HEX);
   String body;
   unsigned long t0 = millis();
   int code = postVoice(lux, requestId, body);
-  LittleFS.remove(REC_PATH);
+  if (isRetryable(code) && WiFi.status() == WL_CONNECTED) {
+    Serial.printf("[Voice] 응답 %d -> 1초 후 같은 request_id로 재시도\n", code);
+    vTaskDelay(pdMS_TO_TICKS(1000));
+    code = postVoice(lux, requestId, body);
+  }
+  LittleFS.remove(REC_PATH);   // 재시도까지 끝난 뒤 녹음 파일 삭제
   Serial.printf("[Voice] 응답 %d (%lums)\n", code, millis() - t0);
   if (code != 200) {
     if (code > 0) Serial.printf("[Voice] 서버 응답: %s\n", body.c_str());
-    failSession(code == -4 ? "응답 시간 초과" : code < 0 ? "서버 연결 실패" : "서버 오류");
+    failServer(code == -4 ? "응답 시간 초과" : code < 0 ? "서버 연결 실패" : "서버 오류");
     return;
   }
 
   // 3) 신호 적용 + 음성 재생
   String audioUrl;
-  if (!handleResponse(body, audioUrl)) { failSession("응답 형식 오류"); return; }
+  if (!handleResponse(body, audioUrl)) { failServer("응답 형식 오류"); return; }
   if (audioUrl.length() == 0) {
     Serial.println("[Voice] audio_url 없음 -> 신호만 적용");
     return;
@@ -252,6 +283,8 @@ static void voiceTaskFn(void*) {
     ulTaskNotifyTake(pdTRUE, portMAX_DELAY);   // 더블탭 대기
     stopRequested = false;
     runSession();
+    Serial.printf("[Mem] 힙 여유 %u / 최소 %u bytes, 음성 태스크 스택 여유 %u bytes\n",
+                  ESP.getFreeHeap(), ESP.getMinFreeHeap(), uxTaskGetStackHighWaterMark(nullptr));
     state = VOICE_IDLE;
     postUi(UI_DONE);
   }
@@ -328,6 +361,12 @@ void voiceUpdate() {
         break;
       case UI_NO_SPEECH:
         setExpression(EXPR_NORMAL, 0);
+        waitingExprActive = false;
+        break;
+      case UI_EMERGENCY:   // interface-spec: EXPR_SAD / blue / short_pulse
+        setExpression(EXPR_SAD, 3000);
+        triggerFadeEffect(0, 50, 150, 1000);
+        triggerVibration(VIBE_SHORT);
         waitingExprActive = false;
         break;
       case UI_ERROR:

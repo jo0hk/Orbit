@@ -1,8 +1,8 @@
 #ifndef CONFIG_H
 #define CONFIG_H
 
-#define WIFI_SSID             "wifi_name"
-#define WIFI_PASSWORD         "wifi_password"
+#define WIFI_SSID             "kys"
+#define WIFI_PASSWORD         "06120814"
 
 // --- MQTT 브로커 설정 ---
 #define MQTT_SERVER_IP        "mqtt_ip"
@@ -55,6 +55,7 @@
 #define SPK_DIN_PIN           27
 #define LIGHT_PIN             34      // CdS 분압 (ADC1 필수: Wi-Fi 사용 중 ADC2 불가)
 #define LIGHT_R_FIXED_OHM     10000.0f
+#define LIGHT_SEND_ENABLED    1       // 0이면 음성 요청에 lux를 보내지 않음 (보정 전·센서 이상 시)
 
 // --- 녹음 ---
 #define REC_SAMPLE_RATE       16000   // 16kHz 16bit 모노 WAV

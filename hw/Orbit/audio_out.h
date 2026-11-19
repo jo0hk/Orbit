@@ -14,4 +14,7 @@ void audioOutTone(float freq, uint32_t ms, float volume = AUDIO_TONE_VOLUME);
 // WAV(PCM 16bit 모노/스테레오) 스트림을 받으면서 재생. *stopFlag가 true면 중단
 bool audioOutPlayWav(WiFiClient& in, volatile bool* stopFlag);
 
+// 펌웨어에 넣어 둔 16kHz 모노 PCM 재생 (비상 음성용). *stopFlag가 true면 중단
+bool audioOutPlayPcm(const int16_t* pcm, size_t samples, volatile bool* stopFlag);
+
 #endif
