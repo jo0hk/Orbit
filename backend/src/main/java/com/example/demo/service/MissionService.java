@@ -1,6 +1,7 @@
 
 package com.example.demo.service;
 
+import java.time.LocalDateTime;
 import com.example.demo.domain.CharacterRepository;
 import com.example.demo.domain.CharacterStatus;
 import com.example.demo.dto.MissionResponse;
@@ -10,7 +11,7 @@ import com.example.demo.entity.UserMission;
 import com.example.demo.entity.MissionStatus;
 import com.example.demo.repository.MissionRepository;
 import com.example.demo.repository.UserMissionRepository;
-
+import java.time.Clock;
 import lombok.RequiredArgsConstructor;
 
 import org.springframework.data.domain.Sort;
@@ -20,7 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDate;
-import java.time.ZoneId;
+
 import java.util.List;
 
 @Service
@@ -30,6 +31,7 @@ public class MissionService {
     private final MissionRepository missionRepository;
     private final UserMissionRepository userMissionRepository;
     private final CharacterRepository characterRepository;
+    private final Clock clock;
 
     // 전체 미션 목록 조회
     @Transactional(readOnly = true)
@@ -47,8 +49,7 @@ public class MissionService {
     @Transactional
     public MissionResponse assignTodayMission(Long userId) {
 
-        LocalDate today =
-                LocalDate.now(ZoneId.of("Asia/Seoul"));
+        LocalDate today = LocalDate.now(clock);
 
         // 1. 오늘 이미 배정된 미션이 있으면 그대로 반환
         var existing = userMissionRepository
@@ -107,7 +108,7 @@ public class MissionService {
 
         // 6. 오늘의 미션 생성
         UserMission userMission =
-                new UserMission(userId, mission);
+                new UserMission(userId, mission, today);
 
         userMissionRepository.save(userMission);
 
@@ -119,8 +120,7 @@ public class MissionService {
     @Transactional(readOnly = true)
     public MissionResponse getCurrentMission(Long userId) {
 
-        LocalDate today =
-                LocalDate.now(ZoneId.of("Asia/Seoul"));
+        LocalDate today = LocalDate.now(clock);
 
         return userMissionRepository
                 .findByUserIdAndAssignedDate(userId, today)
@@ -161,9 +161,7 @@ public class MissionService {
         }
 
         Long userId = request.userId();
-
-        LocalDate today =
-                LocalDate.now(ZoneId.of("Asia/Seoul"));
+        LocalDate today = LocalDate.now(clock);
 
         // 2. 오늘 배정된 미션 조회
         UserMission userMission = userMissionRepository
@@ -226,7 +224,7 @@ public class MissionService {
         }
 
 // 8. 미션 완료 처리
-        userMission.complete();
+        userMission.complete(LocalDateTime.now(clock));
 
 // 9. 캐릭터 단계 상승
         if (stage < 4) {
