@@ -3,8 +3,6 @@
 
 #define WIFI_SSID             "kys"
 #define WIFI_PASSWORD         "06120814"
-#define WIFI_SSID             "wifi_name"
-#define WIFI_PASSWORD         "wifi_password"
 
 // --- MQTT 브로커 설정 ---
 #define MQTT_SERVER_IP        "mqtt_ip"
@@ -27,6 +25,11 @@
 #define SLEEP_TIMEOUT_MS      120000
 // SHAKE는 마지막 걸음 이후 이 시간 이상 정지한 상태에서만 인정 (백엔드 규격: 3초 정지 후 흔들림)
 #define SHAKE_STILL_MS        3000
+
+// MPU 클론(WHO_AM_I 0x72) 축별 영점 (6방향 실측, 단위 g). 모듈 교체 시 재측정 필요
+#define ACC_OFFSET_X_G        -0.82f
+#define ACC_OFFSET_Y_G         0.51f
+#define ACC_OFFSET_Z_G        -0.28f
 
 // status payload 형식
 //  0: 문자열 모드  TOUCH_LONG / SHAKE / STEP_TICK 이름 그대로 발행 (현재 백엔드 형식)
@@ -52,6 +55,7 @@
 #define SPK_DIN_PIN           27
 #define LIGHT_PIN             34      // CdS 분압 (ADC1 필수: Wi-Fi 사용 중 ADC2 불가)
 #define LIGHT_R_FIXED_OHM     10000.0f
+#define LIGHT_SEND_ENABLED    1       // 0이면 음성 요청에 lux를 보내지 않음 (보정 전·센서 이상 시)
 
 // --- 녹음 ---
 #define REC_SAMPLE_RATE       16000   // 16kHz 16bit 모노 WAV
@@ -62,6 +66,8 @@
 #define REC_WAIT_SPEECH_MS    3000    // 시작 후 말이 없으면 취소
 #define REC_SILENCE_END_MS    3000    // 말한 뒤 이만큼 조용하면 자동 종료 (더블탭으로 바로 종료 가능)
 #define REC_MAX_MS            8000    // 최대 녹음 길이 (약 250KB)
+#define VOICE_READY_WAIT_MS   15000   // 부팅/기상 후 Wi-Fi 연결되면 준비음 (이 시간 넘으면 생략)
+#define VOICE_WIFI_WAIT_MS    5000    // 더블탭 시 Wi-Fi 미연결이면 이만큼 기다린 뒤 시작
 
 // --- 더블탭 (음성 교신 시작/종료) ---
 #define DOUBLE_TAP_MAX_PRESS_MS  300  // 이보다 짧게 누르면 '탭'
@@ -76,7 +82,6 @@
 
 // --- 스피커 ---
 #define AUDIO_TONE_VOLUME     0.3f
-#define AUDIO_PLAY_VOLUME     1.0f    // 응답 음성 볼륨 (0~1)
 #define AUDIO_PLAY_GAIN       2.0f    // 응답 음성 증폭 배율 (1.0 = 원음)
 #define AUDIO_STREAM_TIMEOUT_MS 3000  // 응답 음성 수신이 이만큼 끊기면 재생 중단
 

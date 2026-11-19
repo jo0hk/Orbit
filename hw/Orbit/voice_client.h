@@ -13,6 +13,7 @@ enum VoiceState {
 bool voiceBegin(const char* deviceId);   // LittleFS·마이크·스피커·광센서·태스크 준비
 void voiceOnDoubleTap();                 // 메인 루프: 더블탭 감지 시 호출
 void voiceUpdate();                      // 메인 루프: 매 루프 호출 (표정·LED 반영)
+void voiceEnd();                         // 딥슬립 전 오디오 정리 (I2S 해제 + 핀 LOW 고정)
 bool voiceIsBusy();                      // 교신 중이면 true (터치 반응·슬립 억제용)
 
 #endif

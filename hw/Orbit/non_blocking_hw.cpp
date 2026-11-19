@@ -1,5 +1,6 @@
 #include "non_blocking_hw.h"
 #include "stage_manager.h"
+#include <driver/gpio.h>
 
 static OrbitLED* globalLed = nullptr;
 
@@ -15,6 +16,7 @@ static uint8_t vibeStep = 0;
 
 void setupNonBlockingHW(OrbitLED* ledPtr) {
   globalLed = ledPtr;
+  gpio_hold_dis((gpio_num_t)VIBE_PIN);   // 슬립에서 깨어났으면 고정 해제
   pinMode(VIBE_PIN, OUTPUT);
   digitalWrite(VIBE_PIN, LOW);
 }
@@ -84,6 +86,18 @@ static void updateLED() {
   }
 }
 
+// 켬/끔 시간표(ms). 짝수 칸 = 켬, 홀수 칸 = 끔
+static const uint16_t TWO_TAPS_STEPS[]  = { 50, 120, 50 };
+static const uint16_t CALM_WAVE_STEPS[] = { 150, 250, 150, 400, 150 };
+
+// 시간표 진행. 끝나면 false
+static bool runSteps(const uint16_t* steps, uint8_t count, unsigned long elapsed) {
+  if (vibeStep >= count) return false;
+  digitalWrite(VIBE_PIN, (vibeStep % 2 == 0) ? HIGH : LOW);
+  if (elapsed >= steps[vibeStep]) { vibeStep++; vibeStartTime = millis(); }
+  return true;
+}
+
 static void updateVibration() {
   if (currentVibeState == VIBE_IDLE) return;
 
@@ -114,6 +128,14 @@ static void updateVibration() {
           currentVibeState = VIBE_IDLE;
         }
       }
+      break;
+
+    case VIBE_TWO_TAPS:
+      if (!runSteps(TWO_TAPS_STEPS, 3, elapsed)) { digitalWrite(VIBE_PIN, LOW); currentVibeState = VIBE_IDLE; }
+      break;
+
+    case VIBE_CALM_WAVE:
+      if (!runSteps(CALM_WAVE_STEPS, 5, elapsed)) { digitalWrite(VIBE_PIN, LOW); currentVibeState = VIBE_IDLE; }
       break;
 
     default:

@@ -1,14 +1,29 @@
 #include "audio_out.h"
 #include <driver/i2s.h>
 #include <esp_idf_version.h>
+#include <driver/gpio.h>
 
 #define SPK_PORT   I2S_NUM_1   // 마이크(I2S_NUM_0)와 분리
 #define FRAMES     256
 
 static bool spkReady = false;
 static int16_t outBuf[FRAMES * 2];   // 스테레오 프레임
+static const gpio_num_t SPK_PINS[] = { (gpio_num_t)SPK_BCLK_PIN, (gpio_num_t)SPK_LRC_PIN, (gpio_num_t)SPK_DIN_PIN };
+
+// 딥슬립 전: I2S 해제 + 핀 LOW 고정 (슬립 중 잡음·대기 전류 방지)
+void audioOutEnd() {
+  i2s_driver_uninstall(SPK_PORT);
+  spkReady = false;
+  for (gpio_num_t p : SPK_PINS) {
+    gpio_reset_pin(p);
+    gpio_set_direction(p, GPIO_MODE_OUTPUT);
+    gpio_set_level(p, 0);
+    gpio_hold_en(p);
+  }
+}
 
 bool audioOutBegin() {
+  for (gpio_num_t p : SPK_PINS) gpio_hold_dis(p);   // 슬립에서 깨어났으면 핀 고정 해제
   i2s_config_t cfg = {};
   cfg.mode = (i2s_mode_t)(I2S_MODE_MASTER | I2S_MODE_TX);
   cfg.sample_rate = REC_SAMPLE_RATE;
@@ -110,6 +125,24 @@ static bool skipBytes(WiFiClient& in, uint32_t len) {
 
 static uint32_t le32(const uint8_t* p) { return p[0] | (p[1] << 8) | (p[2] << 16) | ((uint32_t)p[3] << 24); }
 static uint16_t le16(const uint8_t* p) { return p[0] | (p[1] << 8); }
+
+// 펌웨어에 넣어 둔 16kHz 모노 PCM 재생 (비상 음성용). *stopFlag가 true면 중단
+bool audioOutPlayPcm(const int16_t* pcm, size_t samples, volatile bool* stopFlag) {
+  if (!spkReady || !pcm) return false;
+  size_t i = 0;
+  while (i < samples) {
+    if (stopFlag && *stopFlag) break;
+    size_t n = min((size_t)FRAMES, samples - i);
+    for (size_t k = 0; k < n; k++) {
+      int16_t s = amplify(pcm[i + k]);
+      outBuf[2 * k] = s; outBuf[2 * k + 1] = s;   // 모노 -> 양쪽
+    }
+    if (!writeFrames(n)) return false;
+    i += n;
+  }
+  i2s_zero_dma_buffer(SPK_PORT);
+  return true;
+}
 
 bool audioOutPlayWav(WiFiClient& in, volatile bool* stopFlag) {
   if (!spkReady) return false;

@@ -10,7 +10,7 @@
 #define LIGHT_ADC_CH    ADC1_CHANNEL_6
 
 // GL5528 계열 추정값 (실측 보정 필요)
-#define LDR_R_AT_10LUX  15000.0f
+#define LDR_R_AT_10LUX  16700.0f   // 15000 -> 16700 (실측 51 lux @ 2150mV 기준 보정)
 #define LDR_GAMMA       0.7f
 #define SAMPLE_COUNT    16
 
@@ -39,10 +39,12 @@ int lightReadLux() {
   if (valid == 0) return -1;
 
   int mv = esp_adc_cal_raw_to_voltage(sum / valid, &adcChars);
-  if (mv <= 10 || mv >= 3290) return -1;   // 0 나누기·포화 방지
+  if (mv <= 10) return 0;        // 아주 어두움 (값을 빼지 않고 0으로 보내야 AI가 어둡다고 판단)
+  if (mv >= 3290) return 1000;   // 아주 밝음 (포화)
 
   float r = LIGHT_R_FIXED_OHM * (3300.0f / mv - 1.0f);
   int lux = (int)(10.0f * powf(LDR_R_AT_10LUX / r, 1.0f / LDR_GAMMA));
+  if (lux > 1000) lux = 1000;
   Serial.printf("[Light] %d mV -> 약 %d lux\n", mv, lux);
   return lux;
 }

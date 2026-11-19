@@ -53,40 +53,11 @@ static void mqttCallback(char* topic, byte* payload, unsigned int length) {
   parseAndExecuteJson(message);
 }
 
-void setupMQTTManager(const char* deviceId) {
-  String id = (deviceId && strlen(deviceId) > 0) ? String(deviceId) : String("ORBIT-UNKNOWN");
+static TaskHandle_t connTask = nullptr;
+static volatile bool connecting = false;   // true인 동안 메인 loop는 mqttClient를 건드리지 않음
 
-  clientId = "orbit-" + id;
-  subTopic = "orbit/" + id + "/command";
-  pubTopic = "orbit/" + id + "/status";
-
-  WiFi.setAutoReconnect(true);
-
-  mqttClient.setServer(MQTT_SERVER_IP, MQTT_PORT);
-  mqttClient.setCallback(mqttCallback);
-  mqttClient.setBufferSize(512);     // 기본 256바이트 초과 메시지 유실 방지
-  mqttClient.setSocketTimeout(2);    // 연결 시도가 loop()를 오래 막지 않도록 (초)
-
-  Serial.printf("[MQTT] Client ID: %s\n", clientId.c_str());
-  Serial.printf("[MQTT] 구독: %s | 발행: %s\n", subTopic.c_str(), pubTopic.c_str());
-}
-
-static void reconnectMQTT() {
-  unsigned long now = millis();
-  if (now - lastConnectAttempt < retryInterval) return;
-  lastConnectAttempt = now;
-
-  if (WiFi.status() != WL_CONNECTED) {
-    if (!wifiWaitLogged) {
-      Serial.println("[MQTT] Wi-Fi 미연결 -> 재연결 대기 중... (Wi-Fi 상태는 [WiFi] 로그 참고)");
-      wifiWaitLogged = true;
-    }
-    return;
-  }
-  wifiWaitLogged = false;   // 다음 끊김 때 다시 1회 출력
-
-  Serial.printf("[MQTT] 서버 접속 시도 (%s:%d)\n", MQTT_SERVER_IP, MQTT_PORT);
-
+// 실제 접속 (태스크 또는 태스크 생성 실패 시 메인에서 호출)
+static void doConnect() {
 #if MQTT_PERSISTENT_SESSION
   const bool cleanSession = false;   // 브로커가 오프라인 동안 QoS1 메시지를 보관
   const uint8_t subQos = 1;
@@ -113,7 +84,62 @@ static void reconnectMQTT() {
   }
 }
 
+static void connectTaskFn(void*) {
+  for (;;) {
+    ulTaskNotifyTake(pdTRUE, portMAX_DELAY);   // 접속 요청 대기
+    doConnect();
+    connecting = false;
+  }
+}
+
+void setupMQTTManager(const char* deviceId) {
+  String id = (deviceId && strlen(deviceId) > 0) ? String(deviceId) : String("ORBIT-UNKNOWN");
+
+  clientId = "orbit-" + id;
+  subTopic = "orbit/" + id + "/command";
+  pubTopic = "orbit/" + id + "/status";
+
+  WiFi.setAutoReconnect(true);
+
+  mqttClient.setServer(MQTT_SERVER_IP, MQTT_PORT);
+  mqttClient.setCallback(mqttCallback);
+  mqttClient.setBufferSize(512);     // 기본 256바이트 초과 메시지 유실 방지
+  mqttClient.setSocketTimeout(2);    // 연결 시도가 loop()를 오래 막지 않도록 (초)
+
+  Serial.printf("[MQTT] Client ID: %s\n", clientId.c_str());
+  Serial.printf("[MQTT] 구독: %s | 발행: %s\n", subTopic.c_str(), pubTopic.c_str());
+
+  if (xTaskCreatePinnedToCore(connectTaskFn, "mqttConn", 4096, nullptr, 1, &connTask, 0) != pdPASS) {
+    connTask = nullptr;
+    Serial.println("[MQTT] 접속 태스크 생성 실패 -> 기존 방식(loop에서 접속)");
+  }
+}
+
+static void reconnectMQTT() {
+  unsigned long now = millis();
+  if (now - lastConnectAttempt < retryInterval) return;
+  lastConnectAttempt = now;
+
+  if (WiFi.status() != WL_CONNECTED) {
+    if (!wifiWaitLogged) {
+      Serial.println("[MQTT] Wi-Fi 미연결 -> 재연결 대기 중... (Wi-Fi 상태는 [WiFi] 로그 참고)");
+      wifiWaitLogged = true;
+    }
+    return;
+  }
+  wifiWaitLogged = false;   // 다음 끊김 때 다시 1회 출력
+
+  Serial.printf("[MQTT] 서버 접속 시도 (%s:%d)\n", MQTT_SERVER_IP, MQTT_PORT);
+  if (connTask) {
+    connecting = true;
+    xTaskNotifyGive(connTask);   // 접속은 태스크가 함 (loop 안 막힘)
+  } else {
+    doConnect();                 // 태스크 생성 실패 시 기존 방식
+  }
+}
+
 void updateMQTTManager() {
+  if (connecting) return;          // 접속 시도 중 (태스크가 mqttClient 사용 중)
   maintainWiFi();
   if (!mqttClient.connected()) {
     reconnectMQTT();
@@ -123,11 +149,11 @@ void updateMQTTManager() {
 }
 
 bool isMQTTConnected() {
-  return mqttClient.connected();
+  return !connecting && mqttClient.connected();
 }
 
 bool publishMQTT(const String& payload) {
-  if (!mqttClient.connected()) {
+  if (connecting || !mqttClient.connected()) {
     Serial.println("[MQTT TX] 미연결 -> 발행 생략");
     return false;
   }
@@ -137,7 +163,7 @@ bool publishMQTT(const String& payload) {
 }
 
 void shutdownMQTT() {
-  if (mqttClient.connected()) {
+  if (!connecting && mqttClient.connected()) {
     mqttClient.disconnect();
   }
 }

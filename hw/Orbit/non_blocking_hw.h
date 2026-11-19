@@ -17,7 +17,9 @@ enum VibePatternState {
   VIBE_IDLE,
   VIBE_SHORT,
   VIBE_LONG,
-  VIBE_DOUBLE
+  VIBE_DOUBLE,
+  VIBE_TWO_TAPS,   // two_short_taps: 가볍게 톡톡
+  VIBE_CALM_WAVE   // calm_wave: 점점 느려지는 3번
 };
 
 void setupNonBlockingHW(OrbitLED* ledPtr);
