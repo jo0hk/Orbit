@@ -56,7 +56,7 @@ interface AiApiService {
 }
 
 object AiClient {
-    private const val BASE_URL = "http://10.162.49.110:8000/"
+    private const val BASE_URL = "http://10.72.254.110:8000/"
 
     private val okHttp = OkHttpClient.Builder()
         .connectTimeout(30, TimeUnit.SECONDS)
