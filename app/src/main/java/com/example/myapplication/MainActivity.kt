@@ -104,6 +104,7 @@ interface OrbitApiService {
         @Path("userId") userId: Long,
         @Query("limit") limit: Int = 10
     ): List<ConversationResponseDto>
+
 }
 
 data class CharacterResponse(
@@ -113,7 +114,7 @@ data class CharacterResponse(
 object RetrofitClient {
     val apiService: OrbitApiService by lazy {
         Retrofit.Builder()
-            .baseUrl("http://10.162.49.59:8080/")
+            .baseUrl("http://10.72.254.59:8080/")
             .addConverterFactory(GsonConverterFactory.create())
             .build()
             .create(OrbitApiService::class.java)
