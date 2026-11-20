@@ -1,27 +1,28 @@
 
 package com.example.demo.service;
-import org.springframework.context.ApplicationEventPublisher;
-import java.time.LocalDateTime;
+
 import com.example.demo.domain.CharacterRepository;
 import com.example.demo.domain.CharacterStatus;
 import com.example.demo.dto.MissionResponse;
 import com.example.demo.dto.MissionResultRequest;
 import com.example.demo.entity.Mission;
-import com.example.demo.entity.UserMission;
 import com.example.demo.entity.MissionStatus;
+import com.example.demo.entity.UserMission;
 import com.example.demo.repository.MissionRepository;
 import com.example.demo.repository.UserMissionRepository;
-import java.time.Clock;
+
 import lombok.RequiredArgsConstructor;
 
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.time.Clock;
 import java.time.LocalDate;
-
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Service
@@ -33,7 +34,10 @@ public class MissionService {
     private final CharacterRepository characterRepository;
     private final Clock clock;
     private final ApplicationEventPublisher eventPublisher;
-    // 전체 미션 목록 조회
+
+    // ==========================================
+    // 1. 전체 미션 목록 조회
+    // ==========================================
     @Transactional(readOnly = true)
     public List<MissionResponse> getAllMissions() {
 
@@ -44,14 +48,15 @@ public class MissionService {
                 .toList();
     }
 
-    // 오늘의 미션 배정
-    // 오늘의 미션 배정
+    // ==========================================
+    // 2. 오늘의 미션 배정
+    // ==========================================
     @Transactional
     public MissionResponse assignTodayMission(Long userId) {
 
         LocalDate today = LocalDate.now(clock);
 
-        // 1. 오늘 이미 배정된 미션이 있으면 그대로 반환
+        // 1. 오늘 이미 배정된 미션이 있다면 반환
         var existing = userMissionRepository
                 .findByUserIdAndAssignedDate(userId, today);
 
@@ -69,7 +74,7 @@ public class MissionService {
                         )
                 );
 
-        // 3. 현재 캐릭터 단계
+        // 3. 현재 캐릭터 단계 확인
         Integer stage = character.getCurrentStage();
 
         if (stage == null || stage < 1 || stage > 4) {
@@ -79,10 +84,10 @@ public class MissionService {
             );
         }
 
-        // 4. 4단계에서는 연료 100% 이상이면 미션 배정 중단
+        // 4. Stage 4 연료 100% 검사
         if (stage == 4) {
 
-            Number fuelGauge = character.getFuelGauge();
+            Integer fuelGauge = character.getFuelGauge();
 
             if (fuelGauge == null) {
                 throw new ResponseStatusException(
@@ -91,12 +96,14 @@ public class MissionService {
                 );
             }
 
-            if (fuelGauge.doubleValue() >= 100) {
+            // 연료 100%면 다음 미션 배정 중단
+            if (fuelGauge >= 100) {
                 return null;
             }
         }
 
         // 5. 현재 단계 미션 조회
+        // Stage별 미션은 하나씩 존재
         Mission mission = missionRepository
                 .findByStage(stage)
                 .orElseThrow(() ->
@@ -107,16 +114,20 @@ public class MissionService {
                 );
 
         // 6. 오늘의 미션 생성
-        UserMission userMission =
-                new UserMission(userId, mission, today);
+        UserMission userMission = new UserMission(
+                userId,
+                mission,
+                today
+        );
 
         userMissionRepository.save(userMission);
 
         return MissionResponse.from(userMission);
     }
 
-    // 오늘의 미션 조회
-    // 오늘의 미션 조회
+    // ==========================================
+    // 3. 오늘의 미션 조회
+    // ==========================================
     @Transactional(readOnly = true)
     public MissionResponse getCurrentMission(Long userId) {
 
@@ -128,7 +139,9 @@ public class MissionService {
                 .orElse(null);
     }
 
-    // 사용자 미션 진행 기록 조회
+    // ==========================================
+    // 4. 사용자 미션 진행 기록 조회
+    // ==========================================
     @Transactional(readOnly = true)
     public List<MissionResponse> getMissionProgress(
             Long userId
@@ -143,14 +156,16 @@ public class MissionService {
                 .toList();
     }
 
-    // AI 미션 판정 결과 처리
+    // ==========================================
+    // 5. AI 미션 판정 결과 처리
+    // ==========================================
     @Transactional
     public MissionResponse processMissionResult(
             Long missionId,
             MissionResultRequest request
     ) {
 
-        // 1. 요청 데이터 확인
+        // 1. 요청 데이터 검증
         if (request.userId() == null ||
                 request.success() == null) {
 
@@ -183,7 +198,7 @@ public class MissionService {
             );
         }
 
-        // 4. 이미 완료된 미션인지 확인
+        // 4. 중복 완료 방지
         if (userMission.getStatus()
                 == MissionStatus.COMPLETED) {
 
@@ -193,8 +208,7 @@ public class MissionService {
             );
         }
 
-        // 5. 미션 실패 시 상태 유지
-        // AI는 SUCCESS일 때만 POST하므로 일반 연동에서는 사용하지 않음
+        // 5. 미션 실패 시 기존 상태 유지
         if (!request.success()) {
             return MissionResponse.from(userMission);
         }
@@ -209,7 +223,7 @@ public class MissionService {
                         )
                 );
 
-        // 7. 현재 Stage와 미션 Stage 확인
+        // 7. 캐릭터 Stage와 미션 Stage 일치 확인
         Integer stage = character.getCurrentStage();
 
         if (stage == null ||
@@ -226,7 +240,7 @@ public class MissionService {
         // 8. 미션 완료 처리
         userMission.complete(LocalDateTime.now(clock));
 
-        // 9. 캐릭터 단계 상승
+        // 9. Stage 상승 처리
         boolean stageChanged = false;
 
         if (stage < 4) {
@@ -234,7 +248,9 @@ public class MissionService {
             stageChanged = true;
         }
 
-        // 10. 미션 성공 연료 보상
+        // Stage 4에서는 Stage 유지
+
+        // 10. 미션 성공 연료 보상 (+10, 최대 100)
         character.addFuel(10);
 
         // 11. DB 저장
@@ -243,6 +259,7 @@ public class MissionService {
 
         // 12. Stage 상승 시 MQTT 이벤트 발행
         if (stageChanged) {
+
             eventPublisher.publishEvent(
                     new StageChangedEvent(
                             userId,
@@ -251,6 +268,7 @@ public class MissionService {
             );
         }
 
+        // 13. 미션 완료 결과 반환
         return MissionResponse.from(userMission);
     }
 }
