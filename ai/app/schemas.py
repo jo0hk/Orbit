@@ -43,11 +43,8 @@ class Led(str, Enum):
 
     LED 공통 제어값(10-01 확정, docs/interface-spec-v1.md 3절)은 색깔 영어명입니다.
     AI는 이 중 rainbow / blue 만 보냅니다. purple·yellow는 HW 내부 반응,
-    pink·orange·lime·green은 HW가 평상시 켜는 1~4단계 테마색입니다.
+    teal·mint·orange·pink는 HW가 평상시 켜는 1~4단계 테마색입니다(11-20 HW 변경).
     이벤트 색은 잠깐 켜진 뒤 단계 테마색으로 돌아갑니다.
-
-    ⚠️ HW applyHardwareAction 은 아직 "dim_blue" 라는 이름으로만 파랑을 받습니다.
-       HW가 "blue" 분기를 추가할 때까지 파랑 신호는 표시되지 않습니다.
     """
 
     RAINBOW = "rainbow"  # 긍정/중립, 미션 성공. 색 이름은 아니지만 축하 연출이라 예외로 둠
@@ -59,9 +56,10 @@ class Vibe(str, Enum):
 
     STRONG_DOUBLE = "strong_double"      # 긍정/중립, 미션 성공
     SOFT_CONTINUOUS = "soft_continuous"  # sad / fear, 미션 보류
-    SHORT_PULSE = "short_pulse"          # anger / disgust, 미션 조건 미달, 비상
+    SHORT_PULSE = "short_pulse"          # 미션 조건 미달, 비상
+    CALM_WAVE = "calm_wave"              # anger / disgust (11-20 HW 구현, short_pulse 대신 원래 값으로)
+    TWO_SHORT_TAPS = "two_short_taps"    # 다시 말해 달라고 할 때, 무응답 (11-20 HW 구현)
     NONE = "none"                        # 서버 전용. LLM은 선택하지 않음 (고위험 발화 대응)
-    # calm_wave, two_short_taps 는 공통값에 있으나 HW 미구현. 구현되면 추가합니다.
 
 
 class OledExpression(str, Enum):

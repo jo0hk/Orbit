@@ -43,6 +43,8 @@ ai/models/*
 ai/outputs/
 .cache/
 *.wav
+# 키링 비상 음성 등 저장소에 넣는 음성 파일 (11-20)
+!ai/assets/*.wav
 *.mp3
 
 # Env

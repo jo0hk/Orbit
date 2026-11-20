@@ -34,7 +34,10 @@ def test_hw_values_match_persona_prompt():
 
     # Vibe.NONE은 서버 전용(고위험 발화 대응)이라 프롬프트에 노출하지 않습니다.
     llm_selectable = {v.value for v in Vibe} - {"none"}
-    assert llm_selectable == {"strong_double", "soft_continuous", "short_pulse"}
+    # 11-20: HW가 calm_wave, two_short_taps 를 구현해 추가
+    assert llm_selectable == {
+        "strong_double", "soft_continuous", "short_pulse", "calm_wave", "two_short_taps",
+    }
 
     # 프롬프트 매핑표에 실제로 적힌 값이 enum 안에 있는지 (프롬프트만 고친 경우를 잡음)
     from app.core.context import load_persona

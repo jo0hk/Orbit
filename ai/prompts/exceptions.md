@@ -1,6 +1,6 @@
 # 예외 상황 대화 세트 (2학기 3주차)
 
-> 작성: AI/PM · 2026-09-21
+> 작성: AI/PM · 2026-09-21 · **개정 2026-11-20** (HW 진동 `calm_wave`·`two_short_taps` 구현 → 3번·4번 진동을 원래 값으로)
 > 모든 대사는 **공백 포함 45자 이내**. 무전 프로토콜(`치직-` 시작, `오버`/`라저`/`교신 종료` 종료)을 따릅니다.
 > `led` / `vibe` / `oled_expression` 값은 09-17 공통 제어값 중 **HW가 실제로 처리하는 값**만 씁니다(`docs/interface-spec-v1.md` 3절, 10-01 개정). `ai/app/schemas.py` enum은 아직 이전 값이라 코드 수정 시 함께 바꿉니다.
 
@@ -58,9 +58,9 @@
 | A | `치직- 적대 신호 감지. 제 분석에 오류가 있었나 봅니다. 오버` |
 | B | `치직- 대장님 심기 불편 확인. 교신 방식을 재조정하겠습니다. 라저` |
 
-`led` `blue` · `vibe` `short_pulse` · `oled` `EXPR_NORMAL`
+`led` `blue` · `vibe` `calm_wave` · `oled` `EXPR_NORMAL`
 
-> 개정 전 값 `dim_white` / `calm_wave` / `wide_eyes` 는 HW에 없습니다. HW가 `calm_wave` 를 구현하면 진동만 되돌립니다.
+> 11-20: HW가 `calm_wave` 를 구현해 `short_pulse` 에서 원래 값으로 되돌렸습니다. 개정 전 값 `dim_white` / `wide_eyes` 는 여전히 HW에 없습니다.
 
 ---
 
@@ -73,9 +73,9 @@
 | A | `치직- 대장님? 음성 신호가 잡히지 않습니다. 응답 바랍니다. 오버` |
 | B | `치직- 교신 대기 중입니다. 준비되시면 송신해 주십시오. 오버` |
 
-`led` `blue` · `vibe` `short_pulse` · `oled` `EXPR_LISTENING`
+`led` `blue` · `vibe` `two_short_taps` · `oled` `EXPR_LISTENING`
 
-> `two_short_taps` 는 09-17 공통 진동값에 있지만 HW에 아직 구현되지 않아 `short_pulse` 로 대신합니다. 다시 말해 달라는 상황이라 "듣는 중" 표정(`EXPR_LISTENING`)을 씁니다.
+> 11-20: HW가 `two_short_taps` 를 구현해 `short_pulse` 에서 원래 값으로 되돌렸습니다. 다시 말해 달라는 상황이라 "듣는 중" 표정(`EXPR_LISTENING`)을 씁니다.
 
 ---
 
