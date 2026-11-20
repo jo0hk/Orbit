@@ -1,6 +1,6 @@
 
 package com.example.demo.service;
-
+import org.springframework.context.ApplicationEventPublisher;
 import java.time.LocalDateTime;
 import com.example.demo.domain.CharacterRepository;
 import com.example.demo.domain.CharacterStatus;
@@ -32,7 +32,7 @@ public class MissionService {
     private final UserMissionRepository userMissionRepository;
     private final CharacterRepository characterRepository;
     private final Clock clock;
-
+    private final ApplicationEventPublisher eventPublisher;
     // 전체 미션 목록 조회
     @Transactional(readOnly = true)
     public List<MissionResponse> getAllMissions() {
@@ -223,22 +223,33 @@ public class MissionService {
             );
         }
 
-// 8. 미션 완료 처리
+        // 8. 미션 완료 처리
         userMission.complete(LocalDateTime.now(clock));
 
-// 9. 캐릭터 단계 상승
+        // 9. 캐릭터 단계 상승
+        boolean stageChanged = false;
+
         if (stage < 4) {
             character.setCurrentStage(stage + 1);
+            stageChanged = true;
         }
 
-// 10. 미션 성공 연료 보상
+        // 10. 미션 성공 연료 보상
         character.addFuel(10);
 
-// 11. DB 저장
+        // 11. DB 저장
         userMissionRepository.save(userMission);
         characterRepository.save(character);
 
-
+        // 12. Stage 상승 시 MQTT 이벤트 발행
+        if (stageChanged) {
+            eventPublisher.publishEvent(
+                    new StageChangedEvent(
+                            userId,
+                            character.getCurrentStage()
+                    )
+            );
+        }
 
         return MissionResponse.from(userMission);
     }
