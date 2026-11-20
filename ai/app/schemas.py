@@ -43,11 +43,8 @@ class Led(str, Enum):
 
     LED 공통 제어값(10-01 확정, docs/interface-spec-v1.md 3절)은 색깔 영어명입니다.
     AI는 이 중 rainbow / blue 만 보냅니다. purple·yellow는 HW 내부 반응,
-    pink·orange·lime·green은 HW가 평상시 켜는 1~4단계 테마색입니다.
+    teal·mint·orange·pink는 HW가 평상시 켜는 1~4단계 테마색입니다(11-20 HW 변경).
     이벤트 색은 잠깐 켜진 뒤 단계 테마색으로 돌아갑니다.
-
-    ⚠️ HW applyHardwareAction 은 아직 "dim_blue" 라는 이름으로만 파랑을 받습니다.
-       HW가 "blue" 분기를 추가할 때까지 파랑 신호는 표시되지 않습니다.
     """
 
     RAINBOW = "rainbow"  # 긍정/중립, 미션 성공. 색 이름은 아니지만 축하 연출이라 예외로 둠
@@ -59,9 +56,10 @@ class Vibe(str, Enum):
 
     STRONG_DOUBLE = "strong_double"      # 긍정/중립, 미션 성공
     SOFT_CONTINUOUS = "soft_continuous"  # sad / fear, 미션 보류
-    SHORT_PULSE = "short_pulse"          # anger / disgust, 미션 조건 미달, 비상
+    SHORT_PULSE = "short_pulse"          # 미션 조건 미달, 비상
+    CALM_WAVE = "calm_wave"              # anger / disgust (11-20 HW 구현, short_pulse 대신 원래 값으로)
+    TWO_SHORT_TAPS = "two_short_taps"    # 다시 말해 달라고 할 때, 무응답 (11-20 HW 구현)
     NONE = "none"                        # 서버 전용. LLM은 선택하지 않음 (고위험 발화 대응)
-    # calm_wave, two_short_taps 는 공통값에 있으나 HW 미구현. 구현되면 추가합니다.
 
 
 class OledExpression(str, Enum):
@@ -217,6 +215,40 @@ class InteractResponse(BaseModel):
     mission_result: MissionResult = MissionResult.NONE
     # 대화 저장에 쓴 requestId. 요청에 없으면 서버가 발급합니다.
     request_id: str | None = None
+    # 사진 판정 전용. 4단계 승차 인증 뒤 "alighting"(하차 촬영 차례). 그 외 null.
+    next_step: str | None = None
+
+
+class LandmarkReport(BaseModel):
+    """3단계 랜드마크 사진의 Vision 판독 결과 (docs/stage-mission-judgement.md 3단계).
+
+    판정(성공·재시도)은 이 값으로 코드 규칙이 정합니다(app/core/mission_judge.py).
+    speech_* 는 같은 Gemini 호출에서 받은 대사 후보이고, 규칙에 맞지 않으면 쓰지 않습니다.
+    """
+
+    is_outdoor: bool = Field(description="야외 사진이면 true")
+    subject: str = Field(
+        description="주 피사체: building / structure / sculpture / signboard / person / other"
+    )
+    people_prominent: bool = Field(description="사람이 사진의 주인공처럼 크게 찍혔으면 true")
+    confidence: float = Field(description="subject 판독 확신 0~1")
+    description: str = Field(description="가장 눈에 띄는 것, 20자 이내 명사구. 사람 생김새 묘사 금지")
+    speech_success: str = Field("", description="칭찬 대사 후보")
+    speech_retry: str = Field("", description="다시 찍기 요청 대사 후보")
+
+
+class TransitReport(BaseModel):
+    """4단계 대중교통 인증 사진의 Vision 판독 결과 (docs/stage-mission-judgement.md 4단계)."""
+
+    boarding_evidence: bool = Field(
+        description="교통카드 단말기, 하차벨, 버스·지하철 내부 노선도 중 하나가 보이면 true"
+    )
+    stop_evidence: bool = Field(description="버스 정류장 표지판 또는 지하철 역명판이 보이면 true")
+    people_prominent: bool = Field(description="사람이 사진의 주인공처럼 크게 찍혔으면 true")
+    confidence: float = Field(description="판독 확신 0~1")
+    description: str = Field(description="가장 눈에 띄는 것, 20자 이내 명사구. 사람 생김새 묘사 금지")
+    speech_success: str = Field("", description="하차 인증 성공 시 칭찬 대사 후보")
+    speech_retry: str = Field("", description="다시 찍기 요청 대사 후보")
 
 
 class TextInteractRequest(BaseModel):

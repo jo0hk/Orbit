@@ -1,10 +1,12 @@
 # 인터페이스 정의서 v1.1 (2학기 1주차 · 10-01 개정)
 
-> 작성: AI/PM · 2026-09-21 · **개정 2026-10-01** · **개정 2026-11-09** · **개정 2026-11-13**
+> 작성: AI/PM · 2026-09-21 · **개정 2026-10-01** · **개정 2026-11-09** · **개정 2026-11-13** · **개정 2026-11-20**
 > 대상: HW · 앱 · 백엔드 · AI 전 파트
 > 근거: 2026-09-17 회의 결정(노션 「회의내용 정리 / 20260917」), 백엔드 `develop`(`e036b37`), HW `hw/Orbit/Orbit.ino`, `ai/app/schemas.py`
 
-> **11-13 개정 사항.** 응답 음성을 16kHz · 모노 · 16bit PCM WAV로 확정했습니다(이전 mp3). 키링 스피커에서 소리가 작아 피크를 -1dBFS로 정규화한 뒤 소프트 리미터로 평균 음량을 키웁니다(무전 톤 기준 원래 대비 약 +13dB). 고위험 응답도 같은 형식입니다. AI 서버가 응답 음성 폴더를 `/outputs` 경로로 공개해, 키링이 `audio_url` 앞에 서버 주소를 붙여 내려받습니다(1절 응답 스펙, 6절).
+> **11-20 개정 사항.** HW가 진동 `calm_wave`·`two_short_taps`를 구현해 AI 서버 `Vibe` enum에 추가하고, `anger`·`disgust` 진동을 `short_pulse`에서 `calm_wave`로 되돌렸습니다(3절). HW 단계 테마색 이름이 1단계 `teal` / 2단계 `mint` / 3단계 `orange` / 4단계 `pink`로 바뀌었습니다(`lime`·`green` 삭제). 키링이 AI 서버에 연결하지 못할 때 재생할 비상 음성 WAV를 `ai/assets/emergency.wav`로 만들어 HW에 전달합니다(6절).
+
+> **11-13 개정 사항.** 응답 음성을 16kHz · 모노 · 16bit PCM WAV로 확정했습니다(이전 mp3). 키링 스피커에서 소리가 작아 피크를 -1dBFS로 정규화한 뒤 피크 리미터로 평균 음량을 키웁니다(무전 톤 기준 원래 대비 약 +10dB). 파형을 깎는 방식은 목소리가 거칠어 쓰지 않습니다. 고위험 응답도 같은 형식입니다. AI 서버가 응답 음성 폴더를 `/outputs` 경로로 공개해, 키링이 `audio_url` 앞에 서버 주소를 붙여 내려받습니다(1절 응답 스펙, 6절).
 
 > **11-09 개정 사항.** AI 서버의 백엔드 연동을 구현했습니다(1절). 음성 엔드포인트를 `device_id` 기준으로 바꾸고, 앱 텍스트 엔드포인트를 추가했습니다. 백엔드 Context API가 아직 없어 기존 API를 조합해 맥락을 조회합니다. 응답에 `mission_result`, `request_id`, `latency.context_ms`를 추가했습니다.
 
@@ -122,7 +124,7 @@ POST /api/v1/interact/text         (application/json)
 - `mission_result` (11-09 추가): 이번 턴의 미션 판정. `success` / `retry`(조건 미달, 같은 날 다시 가능) / `deferred`(보류) / `none`(미션과 무관). 앱은 `success`일 때 미션 성공 화면을 띄우면 됩니다. 미션 반응 턴의 `led`·`vibe`·`oled_expression`은 LLM 값이 아니라 서버가 정한 신호입니다(`docs/mission-context-injection.md` 1절).
 - `request_id` (11-09 추가): 대화 저장에 쓴 값. 요청에 없으면 AI 서버가 발급합니다.
 - **HW 확인 필요:** 09-17 회의 추천 구조는 `hardware{led, vibe, oled}`로 묶는 형태였고, 현재 응답은 평평한 구조입니다. 결정 요약에 없는 항목이라 HW 파싱 방식에 맞춰 정합니다.
-- **응답 음성 (11-13 확정):** 16kHz · 모노 · 16bit PCM WAV, 피크 -1dBFS 정규화 후 소프트 리미터로 음량 증폭. 키링 `audio_out`이 이 형식만 재생합니다. `audio_url`은 `outputs/<UUID>.wav` 상대 경로이고, 키링이 `http://<AI 서버>:8000/`을 앞에 붙여 `GET`합니다(AI 서버 `/outputs` 정적 경로). 음성 합성이 실패하면 `audio_url`은 `null`이고 키링은 LED·진동·표정만 적용합니다.
+- **응답 음성 (11-13 확정):** 16kHz · 모노 · 16bit PCM WAV, 피크 -1dBFS 정규화 후 피크 리미터(엔벨로프 방식)로 음량 증폭. 키링 `audio_out`이 이 형식만 재생합니다. `audio_url`은 `outputs/<UUID>.wav` 상대 경로이고, 키링이 `http://<AI 서버>:8000/`을 앞에 붙여 `GET`합니다(AI 서버 `/outputs` 정적 경로). 음성 합성이 실패하면 `audio_url`은 `null`이고 키링은 LED·진동·표정만 적용합니다.
 
 ### v1 대비
 
@@ -178,7 +180,7 @@ v1에서 정리한 "사용자 감정과 오빗 기분은 다른 것"이라는 �
 | 구분 | 공통 제어값 (회의) | HW가 처리하는 값 (`applyHardwareAction`) |
 | --- | --- | --- |
 | OLED | `EXPR_NORMAL` / `HAPPY` / `SAD` / `SLEEP` / `BLINK` | `EXPR_NORMAL`, `EXPR_SAD`, `EXPR_LISTENING`, `EXPR_THINKING`, `EXPR_DIZZY` (+ 별칭 `idle_eyes`, `sad_eyes`). **`EXPR_HAPPY` 분기 없음** |
-| 진동 | `soft_continuous`, `strong_double`, `calm_wave`, `short_pulse`, `two_short_taps` | `strong_double`, `short` / `short_pulse`, `soft_continuous`. **`calm_wave`, `two_short_taps` 미구현** |
+| 진동 | `soft_continuous`, `strong_double`, `calm_wave`, `short_pulse`, `two_short_taps` | `strong_double`, `short` / `short_pulse`, `soft_continuous`, `calm_wave`, `two_short_taps` (뒤 두 개는 11-20 구현) |
 | LED | 색깔 영어명 그대로 | `rainbow`, `dim_blue`, `purple`. 평상시에는 단계 테마색. **`blue` 분기 없음** (아래 LED 공통 제어값 참조) |
 
 HW가 처리하지 않는 값을 보내면 **아무 반응이 없습니다.** AI 서버는 오른쪽 열의 값만 씁니다.
@@ -197,7 +199,7 @@ HW가 처리하지 않는 값을 보내면 **아무 반응이 없습니다.** AI
 | 통신 장애 (비상 프로토콜) | `EXPR_SAD` | `blue` | `short_pulse` |
 | 고위험 발화 | `EXPR_SAD` | `blue` | `none` (HW가 무시 → 진동 없음) |
 
-- `anger` / `disgust` 는 v1에서 `dim_white` / `calm_wave` 였으나 HW에 없습니다. `calm_wave` 가 구현되면 진동을 되돌립니다.
+- `anger` / `disgust` 는 v1에서 `dim_white` / `calm_wave` 였으나 HW에 없습니다. 11-20에 HW가 `calm_wave` 를 구현해 진동을 `calm_wave` 로 되돌렸습니다.
 - `anger` / `disgust` 와 미션 조건 미달의 LED는 처음에 "보내지 않음"으로 잡았으나 **`blue` 로 정했습니다**(10-01). LED 값은 LLM이 고르거나 응답 필드에 반드시 들어가는 구조라 "없음"을 표현하려면 필드를 비울 수 있게 바꿔야 하는데, 그보다 단순한 쪽을 택했습니다. `sad` 와는 진동(`short_pulse`)으로 구분됩니다.
 - 통신 장애는 v1에서 `orange` 였으나 HW에 없습니다. 비상 응답은 키링 플래시에 저장해 두고 로컬 재생하기로 했으므로(09-17 안건 2 장애 대응), 이 값은 서버가 살아 있고 Gemini만 실패한 경우에만 쓰입니다.
 
@@ -211,10 +213,10 @@ HW가 처리하지 않는 값을 보내면 **아무 반응이 없습니다.** AI
 | `blue` | sad·부정, 미션 조건 미달·보류, 비상, 고위험 | AI | `dim_blue` 라는 이름으로 있음 (0,50,150) |
 | `purple` | 어지러움(흔들기) | HW 내부 | 있음 (180,0,255) |
 | `yellow` | 쓰다듬기(터치) | HW 내부 | 있음 (255,200,0) |
-| `pink` | 1단계 테마색 | HW (단계값 기준) | 있음 (255,60,100) |
-| `orange` | 2단계 테마색 | HW | 있음 (255,80,0) |
-| `lime` | 3단계 테마색 | HW | 있음 (127,255,0) |
-| `green` | 4단계 테마색 | HW | 있음 (0,255,60) |
+| `teal` | 1단계 테마색 (11-20 변경) | HW (단계값 기준) | 있음 (RGB는 HW 코드 기준) |
+| `mint` | 2단계 테마색 (11-20 변경) | HW | 있음 (RGB는 HW 코드 기준) |
+| `orange` | 3단계 테마색 (11-20: 2단계 → 3단계) | HW | 있음 |
+| `pink` | 4단계 테마색 (11-20: 1단계 → 4단계) | HW | 있음 |
 | `skyblue` | 부팅 기본색 | HW | 있음 (135,206,250) |
 
 - **`rainbow` 는 예외입니다.** 색 이름이 아니라 효과 이름이고 실제 동작은 분홍빛 페이드지만, 축하 연출이라 이름을 유지합니다.
@@ -259,6 +261,7 @@ v1은 MQTT 센서값으로 미션을 판정하는 것을 전제로 JSON 전환�
 ## 6. 음성 형식
 
 - **키링 → AI 서버:** 16kHz mono WAV(PCM). WROOM-32의 RAM이 약 300KB라 녹음을 통째로 모으지 말고 나눠 전송합니다(09-17 회의).
+- **비상 음성 (11-20):** 키링이 AI 서버에 연결하지 못하면 펌웨어에 넣어 둔 `ai/assets/emergency.wav`(16kHz 모노 16bit PCM, 4.9초)를 재생합니다. 대사는 `EMERGENCY_RESPONSE`와 같은 "치직- 통신 장애 발생. 태양풍 간섭으로 교신이 끊겼습니다. 오버."이고, 평소 응답과 같은 TTS로 만듭니다. 다시 만들 때는 `ai/`에서 `python -m tools.make_emergency_wav`.
 - **AI 서버 → 키링:** 16kHz · 모노 · 16bit PCM WAV (11-13 확정). `GET /outputs/<파일>.wav`로 내려받습니다. 1절 응답 스펙 참조.
 
 > 1학기에 Colab `MediaRecorder`가 webm으로 녹음한 파일을 `.wav` 이름으로 저장해 librosa가 폴백 경로로 읽었습니다. **확장자가 아니라 실제 컨테이너 포맷을 맞추세요.**
@@ -278,5 +281,6 @@ v1은 MQTT 센서값으로 미션을 판정하는 것을 전제로 JSON 전환�
 | 2026-10-01 | 감정 긍정 보정 | `neutral` + 긍정 표현 → `happy` 채택 (AI/PM). AI 서버 구현 완료 |
 |  | 감정 변환 규칙 (라벨 매핑 + 긍정 보정) | 팀 승인 대기. AI 서버는 이 규칙으로 구현됨 |
 | 2026-10-01 | LED 공통 제어값 | 색깔 영어명. AI는 `rainbow` / `blue`, HW는 `purple` / `yellow` 와 단계 테마색 `pink` / `orange` / `lime` / `green`. 평상시 단계색, 이벤트 시 잠깐 이벤트 색 (3절) |
+| 2026-11-20 | 진동 · 단계 테마색 | HW가 `calm_wave`·`two_short_taps` 구현(AI enum 추가, anger·disgust → `calm_wave`). 단계 테마색 `teal` / `mint` / `orange` / `pink` (3절) |
 |  | 응답 JSON 구조 · 응답 오디오 형식 | HW 확인 대기 |
 |  | `userId` 타입 | 협의 대기 |

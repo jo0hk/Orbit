@@ -70,11 +70,11 @@ def test_output_is_16k_mono_16bit_pcm_wav(tmp_path, monkeypatch, plain, frame_ra
     assert -1.5 <= peak_dbfs <= -0.5, peak_dbfs
 
 
-def test_soft_limit_raises_loudness_and_keeps_peak():
+def test_limiter_raises_loudness_and_keeps_peak():
     """리미터는 평균 음량을 키우되 피크는 -1dBFS 를 넘기지 않아야 합니다."""
     from pydub import AudioSegment
 
-    from app.core.tts import soft_limit, to_keyring_wav
+    from app.core.tts import limit_loudness, to_keyring_wav
 
     sr = 16000
     t = np.linspace(0, 1, sr, endpoint=False)
@@ -83,13 +83,37 @@ def test_soft_limit_raises_loudness_and_keeps_peak():
     seg = AudioSegment((x * 20000).astype(np.int16).tobytes(), frame_rate=sr, sample_width=2, channels=1)
 
     base = to_keyring_wav(seg)
-    loud = soft_limit(base, 12.0)
+    loud = limit_loudness(base, 12.0)
     b = np.array(base.get_array_of_samples(), dtype=np.float64)
     l = np.array(loud.get_array_of_samples(), dtype=np.float64)
     assert 20 * np.log10(np.abs(l).max() / 32768) <= -1.0 + 1e-6  # 피크는 넘지 않음
     quiet = slice(0, int(0.9 * sr))
     gain_quiet = 20 * np.log10(np.sqrt(np.mean(l[quiet] ** 2)) / np.sqrt(np.mean(b[quiet] ** 2)))
     assert gain_quiet > 10.0  # 작은 소리는 거의 구동량(12dB)만큼 커짐
+
+
+def test_limiter_keeps_waveform_clean():
+    """큰 소리도 파형을 깎지 않고 음량만 줄여야 합니다 (11-13: tanh 방식이 거칠어 교체).
+
+    일정한 큰 사인파를 넣으면, 줄어든 크기의 사인파가 그대로 나와야 합니다.
+    파형을 깎는 방식(tanh, 클리핑)으로 되돌아가면 이 테스트가 실패합니다.
+    """
+    from pydub import AudioSegment
+
+    from app.core.tts import limit_loudness, to_keyring_wav
+
+    sr = 16000
+    t = np.linspace(0, 1, sr, endpoint=False)
+    x = np.sin(2 * np.pi * 400 * t)
+    seg = to_keyring_wav(AudioSegment((x * 20000).astype(np.int16).tobytes(), frame_rate=sr, sample_width=2, channels=1))
+    y = np.array(limit_loudness(seg, 12.0).get_array_of_samples(), dtype=np.float64)
+
+    body = slice(int(0.1 * sr), int(0.9 * sr))  # 시작부 게인 변화 구간 제외
+    ref = x[body]
+    g = (ref @ y[body]) / (ref @ ref)
+    residual = y[body] - g * ref
+    sdr_db = 10 * np.log10(np.sum(y[body] ** 2) / np.sum(residual ** 2))
+    assert sdr_db > 35.0, sdr_db
 
 
 def test_radio_static_quieter_than_voice(tmp_path, monkeypatch):
@@ -113,12 +137,12 @@ def test_silence_is_not_amplified():
 
     from app.core.tts import to_keyring_wav
 
-    from app.core.tts import soft_limit
+    from app.core.tts import limit_loudness
 
     out = to_keyring_wav(AudioSegment.silent(duration=500, frame_rate=24000))
     assert out.frame_rate == 16000 and out.channels == 1 and out.sample_width == 2
     assert out.max == 0
-    assert soft_limit(out, 12.0).max == 0
+    assert limit_loudness(out, 12.0).max == 0
 
 
 def test_raw_file_removed_when_conversion_fails(tmp_path, monkeypatch):

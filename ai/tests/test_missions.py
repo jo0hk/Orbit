@@ -149,12 +149,9 @@ def test_channels_and_judges():
         assert BY_STAGE[stage].daily_judge_limit, "Vision 판정은 Gemini 무료 한도 때문에 하루 상한이 필요"
 
 
-def test_photo_missions_inactive_until_upload_path():
-    """사진 업로드 경로(앱 → AI 서버)가 정해지기 전에는 판정할 수 없습니다."""
-    assert BY_STAGE[Stage.SYSTEM_CHECK].active
-    assert BY_STAGE[Stage.AWAKENING].active
-    assert not BY_STAGE[Stage.SURFACE].active
-    assert not BY_STAGE[Stage.CONTACT].active
+def test_active_missions():
+    """11-13 3단계, 11-20 4단계 활성. 네 단계 모두 판정합니다."""
+    assert all(BY_STAGE[s].active for s in Stage)
 
 
 def test_contact_stage_does_not_use_always_on_mic():

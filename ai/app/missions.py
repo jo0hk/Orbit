@@ -200,7 +200,7 @@ MISSIONS: tuple[Mission, ...] = (
             "치직- 랜드마크가 흐립니다. 건물이나 조형물을 다시 담아 주십시오. 오버",
         ),
         daily_judge_limit=5,
-        active=False,  # 사진 업로드 경로(앱 → AI 서버) 확정 후 활성화
+        active=True,  # 11-13 활성화: 앱 → AI 서버 POST /api/v1/interact/photo
         notes=(
             "카메라 촬영만 허용(갤러리 불가). 사진 원본은 판정 후 저장하지 않음",
             "사람이 주 피사체면 사물을 찍도록 안내",
@@ -234,7 +234,7 @@ MISSIONS: tuple[Mission, ...] = (
             "치직- 인증 사진 판독이 어렵습니다. 원하시면 다시 찍어 주십시오. 오버",
         ),
         daily_judge_limit=3,  # 승차·하차 각 3회
-        active=False,  # 사진 업로드 경로 확정 후 활성화 (7~8주차 야외 테스트)
+        active=True,  # 11-20 활성화: 승차·하차 사진 (POST /api/v1/interact/photo, step)
         notes=(
             "상시 마이크를 쓰지 않음. 승차(단말기·하차벨)와 하차(정류장·역명판)를 사물로 인증",
             "좌표는 거리 계산에만 쓰고 저장하지 않음",
