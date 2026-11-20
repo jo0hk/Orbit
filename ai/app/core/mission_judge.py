@@ -5,7 +5,7 @@
 LLM을 쓰지 않습니다. 같은 입력에 같은 판정이 나와야 결과 API 기록과
 회귀 테스트를 믿을 수 있기 때문입니다. 3단계(사진)는 Gemini Vision 이 낸
 구조화 판독 결과(LandmarkReport)를 받아 여기서 규칙으로 판정합니다(11-13).
-4단계(대중교통)는 아직 없습니다.
+4단계(대중교통)는 판독 결과 + 촬영 시각 차 + 두 지점 거리로 판정합니다(11-20).
 
 호출 전제:
   - 고위험 발화는 pipeline이 먼저 가로챕니다. 여기로 오지 않습니다.
@@ -18,7 +18,7 @@ import re
 from dataclasses import dataclass
 
 from app.missions import ReasonCode
-from app.schemas import LandmarkReport, MissionResult, WeatherCategory
+from app.schemas import LandmarkReport, MissionResult, TransitReport, WeatherCategory
 
 STT_MIN_CONFIDENCE = 0.5  # 미만이면 판정하지 않고 예외 대화 5번(되묻기)
 
@@ -180,3 +180,52 @@ def judge_landmark(report: LandmarkReport) -> Judgement:
     if report.confidence < LANDMARK_MIN_CONFIDENCE:
         return Judgement(MissionResult.RETRY, ReasonCode.LANDMARK_LOW_CONF, report.confidence)
     return Judgement(MissionResult.SUCCESS, ReasonCode.LANDMARK_OK, report.confidence)
+
+
+# ─────────────────────────────────────────────────────────────
+# 4단계 — 대중교통 세 정거장 (11-20)
+# 승차(교통카드 단말기·하차벨·노선도) → 하차(정류장·역명판) 두 장.
+# 시간차 · 거리 기준은 설정값(config.transit_min_minutes / transit_min_km)으로 받습니다.
+# ─────────────────────────────────────────────────────────────
+TRANSIT_MIN_CONFIDENCE = 0.6
+
+
+def distance_km(lat1: float, lng1: float, lat2: float, lng2: float) -> float:
+    """두 지점의 직선거리(km, 하버사인). 좌표는 이 계산에만 쓰고 저장하지 않습니다."""
+    import math
+
+    r = 6371.0
+    p1, p2 = math.radians(lat1), math.radians(lat2)
+    dp, dl = p2 - p1, math.radians(lng2 - lng1)
+    a = math.sin(dp / 2) ** 2 + math.cos(p1) * math.cos(p2) * math.sin(dl / 2) ** 2
+    return 2 * r * math.asin(math.sqrt(a))
+
+
+def transit_boarding_ok(report: TransitReport) -> bool:
+    """승차 사진 인정 여부. 승차 단계는 결과 API를 부르지 않으므로 bool 로 충분합니다."""
+    return (
+        report.boarding_evidence
+        and not report.people_prominent
+        and report.confidence >= TRANSIT_MIN_CONFIDENCE
+    )
+
+
+def judge_transit(
+    report: TransitReport,
+    minutes: float,
+    km: float,
+    min_minutes: float,
+    min_km: float,
+) -> Judgement:
+    """하차 사진으로 4단계를 판정합니다. 사진 → 시간 → 거리 순으로 확인합니다."""
+    if (
+        not report.stop_evidence
+        or report.people_prominent
+        or report.confidence < TRANSIT_MIN_CONFIDENCE
+    ):
+        return Judgement(MissionResult.RETRY, ReasonCode.TRANSIT_PHOTO, report.confidence)
+    if minutes < min_minutes:
+        return Judgement(MissionResult.RETRY, ReasonCode.TRANSIT_TIME, report.confidence)
+    if km < min_km:
+        return Judgement(MissionResult.RETRY, ReasonCode.TRANSIT_DISTANCE, report.confidence)
+    return Judgement(MissionResult.SUCCESS, ReasonCode.TRANSIT_OK, report.confidence)

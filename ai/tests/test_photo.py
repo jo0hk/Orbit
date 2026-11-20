@@ -17,7 +17,6 @@ from app.core.pipeline import (
     PHOTO_LIMIT_SPEECH,
     PHOTO_PEOPLE_RETRY,
     PHOTO_PRAISE_DEFAULT,
-    PHOTO_TRANSIT_NOT_READY,
     OrbitCore,
 )
 from app.core.vision import speech_follows_rules
@@ -183,15 +182,6 @@ def test_no_photo_mission_only_praises():
 def test_no_photo_mission_bad_praise_uses_default():
     out = photo(make_core(FakeBackend(routes(None)), report(speech_success="멋져요")))
     assert out.response.speech == PHOTO_PRAISE_DEFAULT
-
-
-def test_transit_not_ready():
-    fake = FakeBackend(routes(TRANSIT_MISSION))
-    core = make_core(fake, report())
-    out = photo(core)
-    assert out.response.speech == PHOTO_TRANSIT_NOT_READY
-    assert out.response.mission_result is MissionResult.NONE
-    assert core.vision.calls == 0
 
 
 def test_completed_landmark_not_judged_again():

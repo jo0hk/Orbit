@@ -239,6 +239,20 @@ class LandmarkReport(BaseModel):
     speech_retry: str = Field("", description="다시 찍기 요청 대사 후보")
 
 
+class TransitReport(BaseModel):
+    """4단계 대중교통 인증 사진의 Vision 판독 결과 (docs/stage-mission-judgement.md 4단계)."""
+
+    boarding_evidence: bool = Field(
+        description="교통카드 단말기, 하차벨, 버스·지하철 내부 노선도 중 하나가 보이면 true"
+    )
+    stop_evidence: bool = Field(description="버스 정류장 표지판 또는 지하철 역명판이 보이면 true")
+    people_prominent: bool = Field(description="사람이 사진의 주인공처럼 크게 찍혔으면 true")
+    confidence: float = Field(description="판독 확신 0~1")
+    description: str = Field(description="가장 눈에 띄는 것, 20자 이내 명사구. 사람 생김새 묘사 금지")
+    speech_success: str = Field("", description="하차 인증 성공 시 칭찬 대사 후보")
+    speech_retry: str = Field("", description="다시 찍기 요청 대사 후보")
+
+
 class TextInteractRequest(BaseModel):
     """앱 텍스트 교신 요청 (docs/interface-spec-v1.md 1절)."""
 

@@ -150,11 +150,8 @@ def test_channels_and_judges():
 
 
 def test_active_missions():
-    """11-13: 3단계(사진)는 앱 → AI 서버 업로드 경로가 생겨 활성. 4단계는 아직 미구현."""
-    assert BY_STAGE[Stage.SYSTEM_CHECK].active
-    assert BY_STAGE[Stage.AWAKENING].active
-    assert BY_STAGE[Stage.SURFACE].active
-    assert not BY_STAGE[Stage.CONTACT].active
+    """11-13 3단계, 11-20 4단계 활성. 네 단계 모두 판정합니다."""
+    assert all(BY_STAGE[s].active for s in Stage)
 
 
 def test_contact_stage_does_not_use_always_on_mic():

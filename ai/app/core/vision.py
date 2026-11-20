@@ -16,7 +16,7 @@ from pathlib import Path
 
 from app.config import get_settings
 from app.missions import MAX_SPEECH_LEN
-from app.schemas import InteractResponse, LandmarkReport, Led, OledExpression, Vibe
+from app.schemas import InteractResponse, LandmarkReport, Led, OledExpression, TransitReport, Vibe
 
 logger = logging.getLogger(__name__)
 
@@ -52,6 +52,32 @@ LANDMARK_PROMPT = """
 - speech_success: "치직- 붉은 벽돌 교회 포착! 탐사 일지에 기록합니다. 라저" (34자)
 - speech_retry: "치직- 건물이 잘 안 보입니다. 한 장 더 부탁드립니다. 오버" (34자)
 """.strip()
+
+TRANSIT_PROMPT = """
+너는 우주비행사 로봇 '오빗(Orbit)'의 관측 장비다.
+은둔하던 대장님이 대중교통으로 세 정거장 이상 이동하는 미션 중에 찍어 보낸 인증 사진을 판독한다.
+지금은 {step_desc} 사진이다.
+
+[판독 항목]
+- boarding_evidence: 교통카드 단말기, 하차벨, 버스·지하철 내부 노선도 중 하나가 보이면 true
+- stop_evidence: 버스 정류장 표지판 또는 지하철 역명판이 보이면 true
+- people_prominent: 사람의 얼굴이나 몸이 사진의 주인공처럼 크게 찍혔으면 true
+- confidence: 판독 확신 (0~1)
+- description: 가장 눈에 띄는 것을 20자 이내 한국어 명사구로 (예: "시청역 역명판"). 사람 생김새는 묘사하지 마라.
+
+[대사] 오빗의 무전 교신 대사 두 개를 함께 써라.
+- speech_success: 대중교통 이동을 마친 대장님을 사진 속 요소를 짚어 우주 스케일로 칭찬
+- speech_retry: {retry_desc}가 잘 보이게 찍어 달라는 부드러운 요청. 다시 할지는 대장님이 고르게
+공통 규칙:
+- 각 대사는 공백 포함 35자 안팎, 절대 45자를 넘기지 마라. 넘으면 그 대사는 버려진다.
+- 한 문장만. "치직-"으로 시작, "오버" 또는 "라저"로 끝, 호칭은 "대장님".
+- "실패"라는 단어를 쓰지 마라. speech_retry 에는 빨리·꼭·반드시·다시 해야·왜 를 쓰지 마라.
+""".strip()
+
+_TRANSIT_STEP = {
+    "boarding": ("승차 인증(버스·지하철에 탄 직후)", "교통카드 단말기나 하차벨"),
+    "alighting": ("하차 인증(내린 직후)", "정류장 표지판이나 역명판"),
+}
 
 MAX_IMAGE_BYTES = 8 * 1024 * 1024  # 앱 권장 2MB. 여유를 두되 비정상 업로드는 거절
 
@@ -126,6 +152,15 @@ class ExplorationVision:
 
         None 이면 판정하지 않습니다(결과 API 호출 안 함, 다시 찍을 수 있음).
         """
+        return self._inspect(image_path, LANDMARK_PROMPT, LandmarkReport)
+
+    def inspect_transit(self, image_path: str, step: str) -> TransitReport | None:
+        """4단계 승차(boarding)·하차(alighting) 사진을 판독합니다. 실패하면 None."""
+        step_desc, retry_desc = _TRANSIT_STEP.get(step, _TRANSIT_STEP["boarding"])
+        prompt = TRANSIT_PROMPT.format(step_desc=step_desc, retry_desc=retry_desc)
+        return self._inspect(image_path, prompt, TransitReport)
+
+    def _inspect(self, image_path: str, prompt: str, schema):
         try:
             self._ensure_loaded()
 
@@ -141,16 +176,16 @@ class ExplorationVision:
 
             response = self._client.models.generate_content(
                 model=self._settings.gemini_model,
-                contents=[image, LANDMARK_PROMPT],
+                contents=[image, prompt],
                 config=types.GenerateContentConfig(
                     response_mime_type="application/json",
-                    response_schema=LandmarkReport,
+                    response_schema=schema,
                     temperature=0.2,
                 ),
             )
-            return LandmarkReport.model_validate_json(response.text)
+            return schema.model_validate_json(response.text)
         except Exception:
-            logger.warning("랜드마크 판독 실패", exc_info=True)
+            logger.warning("사진 판독 실패 (%s)", schema.__name__, exc_info=True)
             return None
 
     def praise(self, image_path: str, distance_m: int | None = None) -> InteractResponse:
