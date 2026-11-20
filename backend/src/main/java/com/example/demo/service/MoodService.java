@@ -1,3 +1,4 @@
+
 package com.example.demo.service;
 
 import com.example.demo.entity.Emotion;
@@ -43,10 +44,9 @@ public class MoodService {
 
         try {
             // 2. HW OLED용 JSON 생성
+            // stage, led는 변경하지 않음
             Map<String, Object> command = new LinkedHashMap<>();
 
-            command.put("stage", 1);
-            command.put("led", "blue");
             command.put("vibe", "short");
             command.put("oled", newMood);
 

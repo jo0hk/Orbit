@@ -1,3 +1,4 @@
+
 package com.example.demo.repository;
 
 import com.example.demo.entity.Device;
@@ -12,7 +13,8 @@ public interface DeviceRepository
 
     Optional<Device> findByCharId(Long charId);
 
-    Optional<Device> findByUserId(Integer userId);
+    // 사용자 ID 타입을 Long으로 통일
+    Optional<Device> findByUserId(Long userId);
 
     boolean existsByDeviceId(String deviceId);
 

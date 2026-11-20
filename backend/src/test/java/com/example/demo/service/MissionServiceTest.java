@@ -12,6 +12,7 @@ import com.example.demo.entity.UserMission;
 import com.example.demo.repository.MissionRepository;
 import com.example.demo.repository.UserMissionRepository;
 
+import org.springframework.context.ApplicationEventPublisher;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -45,6 +46,9 @@ class MissionServiceTest {
     @Mock
     private CharacterRepository characterRepository;
 
+    @Mock
+    private ApplicationEventPublisher eventPublisher;
+
     private static final Long USER_ID = 1L;
     private static final Long MISSION_ID = 4L;
 
@@ -67,7 +71,8 @@ class MissionServiceTest {
                 missionRepository,
                 userMissionRepository,
                 characterRepository,
-                createClock(date)
+                createClock(date),
+                eventPublisher
         );
     }
 
@@ -81,7 +86,6 @@ class MissionServiceTest {
                 MissionType.TRANSIT
         );
 
-        // 테스트용 미션 ID 설정
         ReflectionTestUtils.setField(
                 mission, "id", MISSION_ID
         );
@@ -92,8 +96,7 @@ class MissionServiceTest {
     // 테스트용 캐릭터 생성
     private CharacterStatus createCharacter(int fuel) {
 
-        CharacterStatus character =
-                new CharacterStatus();
+        CharacterStatus character = new CharacterStatus();
 
         character.setUserId(USER_ID);
         character.setCurrentStage(4);
@@ -117,39 +120,32 @@ class MissionServiceTest {
             int expectedFuel
     ) {
 
-        LocalDate today =
-                LocalDate.of(2026, 11, 19);
+        LocalDate today = LocalDate.of(2026, 11, 19);
 
         CharacterStatus character =
                 createCharacter(beforeFuel);
 
         Mission mission = createMission();
 
-        UserMission userMission =
-                new UserMission(
-                        USER_ID,
-                        mission,
-                        today
-                );
+        UserMission userMission = new UserMission(
+                USER_ID,
+                mission,
+                today
+        );
 
         when(userMissionRepository
-                .findByUserIdAndAssignedDate(
-                        USER_ID, today
-                ))
+                .findByUserIdAndAssignedDate(USER_ID, today))
                 .thenReturn(Optional.of(userMission));
 
         when(characterRepository.findByUserId(USER_ID))
                 .thenReturn(Optional.of(character));
 
-        MissionService service =
-                createService(today);
+        MissionService service = createService(today);
 
         MissionResponse response =
                 service.processMissionResult(
                         MISSION_ID,
-                        new MissionResultRequest(
-                                USER_ID, true
-                        )
+                        new MissionResultRequest(USER_ID, true)
                 );
 
         // 연료 증가 확인
@@ -159,10 +155,7 @@ class MissionServiceTest {
         );
 
         // Stage 4 유지 확인
-        assertEquals(
-                4,
-                character.getCurrentStage()
-        );
+        assertEquals(4, character.getCurrentStage());
 
         // 미션 완료 확인
         assertEquals(
@@ -171,11 +164,8 @@ class MissionServiceTest {
         );
 
         // 저장 메서드 호출 확인
-        verify(userMissionRepository)
-                .save(userMission);
-
-        verify(characterRepository)
-                .save(character);
+        verify(userMissionRepository).save(userMission);
+        verify(characterRepository).save(character);
     }
 
     // ==========================================
@@ -184,17 +174,14 @@ class MissionServiceTest {
     @Test
     void fuel100StopsAssignment() {
 
-        LocalDate today =
-                LocalDate.of(2026, 11, 23);
+        LocalDate today = LocalDate.of(2026, 11, 23);
 
-        CharacterStatus character =
-                createCharacter(100);
+        CharacterStatus character = createCharacter(100);
 
         when(characterRepository.findByUserId(USER_ID))
                 .thenReturn(Optional.of(character));
 
-        MissionService service =
-                createService(today);
+        MissionService service = createService(today);
 
         MissionResponse response =
                 service.assignTodayMission(USER_ID);
@@ -213,18 +200,13 @@ class MissionServiceTest {
     @Test
     void fuelBelow100AssignsMission() {
 
-        LocalDate today =
-                LocalDate.of(2026, 11, 19);
+        LocalDate today = LocalDate.of(2026, 11, 19);
 
-        CharacterStatus character =
-                createCharacter(65);
-
+        CharacterStatus character = createCharacter(65);
         Mission mission = createMission();
 
         when(userMissionRepository
-                .findByUserIdAndAssignedDate(
-                        USER_ID, today
-                ))
+                .findByUserIdAndAssignedDate(USER_ID, today))
                 .thenReturn(Optional.empty());
 
         when(characterRepository.findByUserId(USER_ID))
@@ -233,8 +215,7 @@ class MissionServiceTest {
         when(missionRepository.findByStage(4))
                 .thenReturn(Optional.of(mission));
 
-        MissionService service =
-                createService(today);
+        MissionService service = createService(today);
 
         MissionResponse response =
                 service.assignTodayMission(USER_ID);
@@ -263,27 +244,18 @@ class MissionServiceTest {
     @Test
     void nextDayAssignsNewMission() {
 
-        LocalDate day1 =
-                LocalDate.of(2026, 11, 19);
+        LocalDate day1 = LocalDate.of(2026, 11, 19);
+        LocalDate day2 = LocalDate.of(2026, 11, 20);
 
-        LocalDate day2 =
-                LocalDate.of(2026, 11, 20);
-
-        CharacterStatus character =
-                createCharacter(75);
-
+        CharacterStatus character = createCharacter(75);
         Mission mission = createMission();
 
         when(userMissionRepository
-                .findByUserIdAndAssignedDate(
-                        USER_ID, day1
-                ))
+                .findByUserIdAndAssignedDate(USER_ID, day1))
                 .thenReturn(Optional.empty());
 
         when(userMissionRepository
-                .findByUserIdAndAssignedDate(
-                        USER_ID, day2
-                ))
+                .findByUserIdAndAssignedDate(USER_ID, day2))
                 .thenReturn(Optional.empty());
 
         when(characterRepository.findByUserId(USER_ID))
@@ -292,35 +264,26 @@ class MissionServiceTest {
         when(missionRepository.findByStage(4))
                 .thenReturn(Optional.of(mission));
 
-        MissionService service1 =
-                createService(day1);
-
-        MissionService service2 =
-                createService(day2);
+        MissionService service1 = createService(day1);
+        MissionService service2 = createService(day2);
 
         service1.assignTodayMission(USER_ID);
         service2.assignTodayMission(USER_ID);
 
         ArgumentCaptor<UserMission> captor =
-                ArgumentCaptor.forClass(
-                        UserMission.class
-                );
+                ArgumentCaptor.forClass(UserMission.class);
 
         verify(userMissionRepository, times(2))
                 .save(captor.capture());
 
         assertEquals(
                 day1,
-                captor.getAllValues()
-                        .get(0)
-                        .getAssignedDate()
+                captor.getAllValues().get(0).getAssignedDate()
         );
 
         assertEquals(
                 day2,
-                captor.getAllValues()
-                        .get(1)
-                        .getAssignedDate()
+                captor.getAllValues().get(1).getAssignedDate()
         );
     }
 
@@ -330,26 +293,21 @@ class MissionServiceTest {
     @Test
     void sameDayReturnsExistingMission() {
 
-        LocalDate today =
-                LocalDate.of(2026, 11, 19);
+        LocalDate today = LocalDate.of(2026, 11, 19);
 
         Mission mission = createMission();
 
-        UserMission existing =
-                new UserMission(
-                        USER_ID,
-                        mission,
-                        today
-                );
+        UserMission existing = new UserMission(
+                USER_ID,
+                mission,
+                today
+        );
 
         when(userMissionRepository
-                .findByUserIdAndAssignedDate(
-                        USER_ID, today
-                ))
+                .findByUserIdAndAssignedDate(USER_ID, today))
                 .thenReturn(Optional.of(existing));
 
-        MissionService service =
-                createService(today);
+        MissionService service = createService(today);
 
         MissionResponse response =
                 service.assignTodayMission(USER_ID);
@@ -378,32 +336,26 @@ class MissionServiceTest {
     @Test
     void duplicateRewardIsBlocked() {
 
-        LocalDate today =
-                LocalDate.of(2026, 11, 19);
+        LocalDate today = LocalDate.of(2026, 11, 19);
 
         Mission mission = createMission();
 
-        UserMission userMission =
-                new UserMission(
-                        USER_ID,
-                        mission,
-                        today
-                );
+        UserMission userMission = new UserMission(
+                USER_ID,
+                mission,
+                today
+        );
 
-        // 이미 완료된 상태로 설정
         ReflectionTestUtils.setField(
                 userMission,
                 "status",
                 MissionStatus.COMPLETED
         );
 
-        MissionService service =
-                createService(today);
+        MissionService service = createService(today);
 
         when(userMissionRepository
-                .findByUserIdAndAssignedDate(
-                        USER_ID, today
-                ))
+                .findByUserIdAndAssignedDate(USER_ID, today))
                 .thenReturn(Optional.of(userMission));
 
         ResponseStatusException exception =
@@ -426,5 +378,147 @@ class MissionServiceTest {
 
         verify(userMissionRepository, never())
                 .save(any(UserMission.class));
+    }
+
+    // ==========================================
+    // TEST 7. Stage 1~3 미션 성공 시 이벤트 발행
+    // ==========================================
+    @ParameterizedTest
+    @CsvSource({
+            "1, 2",
+            "2, 3",
+            "3, 4"
+    })
+    void missionSuccessPublishesStageChangedEvent(
+            int beforeStage,
+            int expectedStage
+    ) {
+
+        LocalDate today = LocalDate.of(2026, 11, 20);
+
+        // 현재 단계에 해당하는 미션 생성
+        Mission mission = new Mission(
+                beforeStage,
+                "테스트 미션",
+                "Stage 상승 검증",
+                MissionType.TRANSIT
+        );
+
+        ReflectionTestUtils.setField(
+                mission, "id", MISSION_ID
+        );
+
+        UserMission userMission = new UserMission(
+                USER_ID,
+                mission,
+                today
+        );
+
+        // 캐릭터의 기존 Stage 지정
+        CharacterStatus character = createCharacter(65);
+        character.setCurrentStage(beforeStage);
+
+        when(userMissionRepository
+                .findByUserIdAndAssignedDate(USER_ID, today))
+                .thenReturn(Optional.of(userMission));
+
+        when(characterRepository.findByUserId(USER_ID))
+                .thenReturn(Optional.of(character));
+
+        MissionService service = createService(today);
+
+        // 미션 성공 처리
+        MissionResponse response =
+                service.processMissionResult(
+                        MISSION_ID,
+                        new MissionResultRequest(USER_ID, true)
+                );
+
+        // 1. 미션 완료 확인
+        assertEquals(
+                MissionStatus.COMPLETED,
+                response.getStatus()
+        );
+
+        // 2. 캐릭터 Stage 상승 확인
+        assertEquals(
+                expectedStage,
+                character.getCurrentStage()
+        );
+
+        // 3. 연료 +10 확인
+        assertEquals(75, character.getFuelGauge());
+
+        // 4. StageChangedEvent 발행 확인
+        ArgumentCaptor<StageChangedEvent> captor =
+                ArgumentCaptor.forClass(StageChangedEvent.class);
+
+        verify(eventPublisher, times(1))
+                .publishEvent(captor.capture());
+
+        StageChangedEvent event = captor.getValue();
+
+        // 5. 발행된 이벤트 값 확인
+        assertEquals(USER_ID, event.userId());
+        assertEquals(expectedStage, event.stage());
+
+        // 6. DB 저장 메서드 호출 확인
+        verify(userMissionRepository).save(userMission);
+        verify(characterRepository).save(character);
+    }
+
+    // ==========================================
+    // TEST 8. Stage 4 미션 성공 시 이벤트 미발행
+    // ==========================================
+    @Test
+    void stage4DoesNotPublishStageChangedEvent() {
+
+        LocalDate today = LocalDate.of(2026, 11, 20);
+
+        Mission mission = createMission();
+
+        UserMission userMission = new UserMission(
+                USER_ID,
+                mission,
+                today
+        );
+
+        CharacterStatus character = createCharacter(75);
+
+        when(userMissionRepository
+                .findByUserIdAndAssignedDate(USER_ID, today))
+                .thenReturn(Optional.of(userMission));
+
+        when(characterRepository.findByUserId(USER_ID))
+                .thenReturn(Optional.of(character));
+
+        MissionService service = createService(today);
+
+        // Stage 4 미션 성공 처리
+        MissionResponse response =
+                service.processMissionResult(
+                        MISSION_ID,
+                        new MissionResultRequest(USER_ID, true)
+                );
+
+        // 1. 미션 완료 확인
+        assertEquals(
+                MissionStatus.COMPLETED,
+                response.getStatus()
+        );
+
+        // 2. Stage 4 유지
+        assertEquals(4, character.getCurrentStage());
+
+        // 3. 연료 +10 확인
+        assertEquals(85, character.getFuelGauge());
+
+        // 4. Stage 변경 이벤트 미발행 확인
+        verify(eventPublisher, never())
+                .publishEvent(any(StageChangedEvent.class));
+
+        // 5. DB 저장 메서드 호출 확인
+        verify(userMissionRepository).save(userMission);
+        verify(characterRepository).save(character);
     }
 }
